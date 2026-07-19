@@ -53,8 +53,8 @@ Optional settings live under `extension.bidirectionalScrollSync`:
 
 The extension watches for MarkEdit-preview's `.markdown-body` pane and
 reattaches automatically if it appears later or is replaced. Normal preview mode
-changes do not require restarting sync. Settings are read at startup, so use the
-Extensions menu's restart command after changing settings.
+changes do not require manual intervention. Settings are read at startup, so
+quit and reopen MarkEdit after changing settings.
 
 ## Development
 

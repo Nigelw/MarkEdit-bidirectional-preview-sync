@@ -29,6 +29,10 @@ export function markEditPreviewSyncScrollDisabled(): boolean {
   return root.syncScroll === false;
 }
 
+export function markEditPreviewSyncScrollStatus(): 'disabled' | 'enabled or unset' {
+  return markEditPreviewSyncScrollDisabled() ? 'disabled' : 'enabled or unset';
+}
+
 export function settingsObject(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>

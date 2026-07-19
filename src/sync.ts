@@ -45,10 +45,6 @@ export class BidirectionalScrollSync {
     this.attachCurrentPreviewPane();
   }
 
-  restart(): void {
-    this.start();
-  }
-
   stop(): void {
     for (const dispose of this.disposables.splice(0)) {
       dispose();
@@ -92,8 +88,8 @@ export class BidirectionalScrollSync {
         `MarkEdit-preview syncScroll: ${nativeDisabled ? 'disabled' : 'enabled or unset'}.`,
         '',
         nativeDisabled
-          ? 'Setup is ready. Preview mode changes are detected automatically; use Restart Sync after settings changes.'
-          : `Set "${PREVIEW_SETTINGS_NAMESPACE}.syncScroll" to false, then restart MarkEdit or choose Restart Sync.`,
+          ? 'Setup is ready. Preview mode changes are detected automatically.'
+          : `Set "${PREVIEW_SETTINGS_NAMESPACE}.syncScroll" to false, then quit and reopen MarkEdit.`,
       ].join('\n'),
       buttons: ['OK'],
     });

@@ -1,19 +1,27 @@
 import { MarkEdit } from 'markedit-api';
 import type { MenuItem } from 'markedit-api';
 
-import type { BidirectionalScrollSync } from './sync';
+import { markEditPreviewSyncScrollStatus } from './settings';
 
-export function installMenu(controller: BidirectionalScrollSync): void {
+export function installMenu(): void {
   MarkEdit.addMainMenuItem({
     title: 'Bidirectional Scroll Sync',
     children: [
       {
-        title: 'Restart Sync',
-        action: () => controller.restart(),
-      },
-      {
         title: 'Check Setup',
-        action: () => controller.showSetupStatus(),
+        action: () => {
+          // The controller is not needed for this static setup guidance.
+          void MarkEdit.showAlert({
+            title: 'Bidirectional Scroll Sync',
+            message: [
+              `MarkEdit-preview syncScroll: ${markEditPreviewSyncScrollStatus()}.`,
+              '',
+              'This extension runs automatically when MarkEdit-preview syncScroll is disabled.',
+              'Quit and reopen MarkEdit after changing this extension or MarkEdit-preview settings.',
+            ].join('\n'),
+            buttons: ['OK'],
+          });
+        },
       },
       {
         title: 'About',

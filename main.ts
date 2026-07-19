@@ -2,10 +2,10 @@ import { MarkEdit } from 'markedit-api';
 
 import { installMenu } from './src/menu';
 import { loadSettings } from './src/settings';
-import { BidirectionalScrollSync } from './src/sync';
+import { BidirectionalPreviewSync } from './src/sync';
 import { checkForUpdates } from './src/updater';
 
-const controller = new BidirectionalScrollSync();
+const controller = new BidirectionalPreviewSync();
 
 installMenu(controller);
 

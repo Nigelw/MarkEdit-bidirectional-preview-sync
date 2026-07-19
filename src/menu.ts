@@ -4,11 +4,11 @@ import type { MenuItem } from 'markedit-api';
 import { EXTENSION_NAME, REPO_URL } from './constants';
 import { loadSettings, SETTINGS_NAMESPACE, settingsObject } from './settings';
 import type { SyncTiming } from './settings';
-import type { BidirectionalScrollSync } from './sync';
+import type { BidirectionalPreviewSync } from './sync';
 import { readSettings, writeSettings } from './settingsFile';
 import { checkForUpdates } from './updater';
 
-export function installMenu(controller: BidirectionalScrollSync): void {
+export function installMenu(controller: BidirectionalPreviewSync): void {
   MarkEdit.addMainMenuItem({
     title: EXTENSION_NAME,
     children: [
@@ -27,9 +27,9 @@ export function installMenu(controller: BidirectionalScrollSync): void {
         title: 'About',
         action: () => {
           void MarkEdit.showAlert({
-            title: 'Bidirectional Scroll Sync',
+            title: 'Bidirectional Preview Sync',
             message:
-              'Best-effort editor-to-preview and preview-to-editor scroll sync. ' +
+              'Best-effort editor-to-preview and preview-to-editor synchronization. ' +
               'Disable MarkEdit-preview syncScroll so this extension can own both directions.',
             buttons: ['OK'],
           });
@@ -47,7 +47,7 @@ export function installMenu(controller: BidirectionalScrollSync): void {
   } satisfies MenuItem);
 }
 
-async function setSyncTiming(timing: SyncTiming, controller: BidirectionalScrollSync): Promise<void> {
+async function setSyncTiming(timing: SyncTiming, controller: BidirectionalPreviewSync): Promise<void> {
   const parsed = await readSettings();
   if (parsed === undefined) {
     await MarkEdit.showAlert({

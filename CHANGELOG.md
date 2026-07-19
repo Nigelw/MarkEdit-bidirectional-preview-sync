@@ -4,6 +4,9 @@
 
 ### New
 
+- Renamed the extension to MarkEdit Bidirectional Preview Sync, including the
+  package name, updater asset, settings namespace, repository links, and
+  integration global.
 - Added an in-app update checker backed by GitHub releases.
 - Added extension-menu links to check for updates and open the GitHub project.
 - Added a release skill and developer notes for publishing updater-compatible
@@ -11,7 +14,7 @@
 
 ## 0.1.0 (2026-07-19)
 
-- Initial best-effort bidirectional scroll sync extension.
+- Initial best-effort bidirectional preview sync extension.
 - Requires MarkEdit-preview native `syncScroll` to be disabled.
 - Uses a shared source lock, cached preview block metadata, and binary-search
   lookup for editor-to-preview and preview-to-editor mapping.
@@ -21,7 +24,7 @@
   mode while keeping continuous sync instant unless `animated` is set explicitly.
 - Renamed the timing setting to `syncTiming` with `"afterScroll"` and
   `"whileScrolling"` modes.
-- Added an integration signal on `window.__markeditBidirectionalScrollSync__`
+- Added an integration signal on `window.__markeditBidirectionalPreviewSync__`
   so other extensions can mark intentional preview or editor navigation scrolls.
 - Changed `"afterScroll"` timing to wait for scroll events to settle instead of
   relying on native `scrollend`, so inertial scrolling can finish before sync.

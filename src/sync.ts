@@ -25,7 +25,7 @@ type IntegrationState = {
 
 declare global {
   interface Window {
-    __markeditBidirectionalScrollSync__?: IntegrationState;
+    __markeditBidirectionalPreviewSync__?: IntegrationState;
   }
 }
 
@@ -34,7 +34,7 @@ const LOCK_RELEASE_MS = 180;
 const SCROLL_SETTLE_MS = 220;
 const SMOOTH_LOCK_RELEASE_MS = 1200;
 
-export class BidirectionalScrollSync {
+export class BidirectionalPreviewSync {
   private settings: Settings = loadSettings();
   private readonly blockIndex = new PreviewBlockIndex();
   private disposables: Disposable[] = [];
@@ -56,7 +56,7 @@ export class BidirectionalScrollSync {
     this.settings = loadSettings();
 
     if (!this.settings.enabled) {
-      console.info('[Bidirectional Scroll Sync] Disabled by settings.');
+      console.info('[Bidirectional Preview Sync] Disabled by settings.');
       return;
     }
 
@@ -102,7 +102,7 @@ export class BidirectionalScrollSync {
     const nativeDisabled = markEditPreviewSyncScrollDisabled();
 
     void MarkEdit.showAlert({
-      title: 'Bidirectional Scroll Sync',
+      title: 'Bidirectional Preview Sync',
       message: [
         `Extension status: ${this.started ? 'running' : 'not running'}.`,
         `MarkEdit-preview pane: ${previewPane === undefined ? 'not found' : 'found'}.`,
@@ -184,7 +184,7 @@ export class BidirectionalScrollSync {
         this.publishIntegration(false);
       }
       if (!this.waitingForPreviewLogged) {
-        console.warn('[Bidirectional Scroll Sync] MarkEdit-preview pane not found; waiting for it to appear.');
+        console.warn('[Bidirectional Preview Sync] MarkEdit-preview pane not found; waiting for it to appear.');
         this.waitingForPreviewLogged = true;
       }
       return;
@@ -201,7 +201,7 @@ export class BidirectionalScrollSync {
     this.waitingForPreviewLogged = false;
     this.started = true;
     this.publishIntegration(true);
-    console.info('[Bidirectional Scroll Sync] Attached to MarkEdit-preview pane.');
+    console.info('[Bidirectional Preview Sync] Attached to MarkEdit-preview pane.');
   }
 
   private detachScrollListeners(): void {
@@ -490,8 +490,8 @@ export class BidirectionalScrollSync {
   }
 
   private publishIntegration(isActive: boolean): void {
-    window.__markeditBidirectionalScrollSync__ = {
-      ...window.__markeditBidirectionalScrollSync__,
+    window.__markeditBidirectionalPreviewSync__ = {
+      ...window.__markeditBidirectionalPreviewSync__,
       isActive,
       beginScroll: (source, options) => this.beginIntegrationScroll(source, options),
       beginPreviewScroll: (options) => this.beginIntegrationScroll('preview', options),
@@ -506,10 +506,9 @@ export class BidirectionalScrollSync {
 
   private async warnAboutNativeSync(): Promise<void> {
     const message =
-      'Bidirectional Scroll Sync needs MarkEdit-preview native scroll sync disabled. ' +
-      'Otherwise both extensions will compete and cause correction jumps.';
+      "Bidirectional Preview Sync needs to turn off MarkEdit-preview's built-in Sync Scroll setting.";
 
-    console.warn(`[Bidirectional Scroll Sync] ${message}`);
+    console.warn(`[Bidirectional Preview Sync] ${message}`);
     if (!this.settings.showSetupWarning || this.nativeSyncAlertShown) {
       return;
     }
@@ -519,9 +518,9 @@ export class BidirectionalScrollSync {
 
   private async showNativeSyncAlert(message: string): Promise<void> {
     const action = await MarkEdit.showAlert({
-      title: 'Disable MarkEdit-preview Sync Scroll',
-      message: `${message}\n\nThe extension can update settings.json for you. Quit and reopen MarkEdit afterward so MarkEdit-preview reloads with sync disabled.`,
-      buttons: ['Disable Sync Scroll', 'Not Now'],
+      title: 'Turn Off Built-In Sync Scroll',
+      message: `${message}\n\nAfter turning it off, quit and reopen MarkEdit for changes to take effect.`,
+      buttons: ['Turn Off Sync Scroll', 'Not Now'],
     });
 
     if (action === 0) {
@@ -559,8 +558,8 @@ export class BidirectionalScrollSync {
     }
 
     await MarkEdit.showAlert({
-      title: 'Restart Required',
-      message: 'MarkEdit-preview syncScroll has been disabled. Quit and reopen MarkEdit so the change takes effect in every open document.',
+      title: 'Relaunch MarkEdit to Finish Setup',
+      message: 'Built-In Sync Scroll is now turned off.\n\nQuit and reopen MarkEdit so Bidirectional Preview Sync can take over scrolling.',
       buttons: ['OK'],
     });
   }

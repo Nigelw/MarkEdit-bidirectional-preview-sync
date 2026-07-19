@@ -1,21 +1,21 @@
 ---
 name: release
-description: Cut a new release of the MarkEdit Bidirectional Scroll Sync extension: bump the version, update the changelog, build, tag, push, and publish a GitHub release with the compiled bundle attached as an asset. Use when the user says "release", "cut a release", "ship a new version", "publish v1.2.0", or wants to make the in-app auto-updater offer a new build.
+description: Cut a new release of the MarkEdit Bidirectional Preview Sync extension: bump the version, update the changelog, build, tag, push, and publish a GitHub release with the compiled bundle attached as an asset. Use when the user says "release", "cut a release", "ship a new version", "publish v1.2.0", or wants to make the in-app auto-updater offer a new build.
 ---
 
-# Release MarkEdit Bidirectional Scroll Sync
+# Release MarkEdit Bidirectional Preview Sync
 
 This extension has an in-app self-updater (`src/updater.ts`). Installed copies poll
-`api.github.com/repos/Nigelw/MarkEdit-bidirectional-scroll-sync/releases/latest`, compare the
+`api.github.com/repos/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest`, compare the
 release tag against their baked-in version, and, when a newer one exists, download the release's
-`markedit-bidirectional-scroll-sync.js` asset via its `browser_download_url` and overwrite their
+`markedit-bidirectional-preview-sync.js` asset via its `browser_download_url` and overwrite their
 own script file with it.
 
 A release is only usable by the updater if all of these agree:
 
 1. `package.json` `version` = the new version, baked into the bundle at build time.
-2. `dist/markedit-bidirectional-scroll-sync.js` is freshly rebuilt from that version.
-3. The GitHub release for `v<version>` has a `markedit-bidirectional-scroll-sync.js` asset that is
+2. `dist/markedit-bidirectional-preview-sync.js` is freshly rebuilt from that version.
+3. The GitHub release for `v<version>` has a `markedit-bidirectional-preview-sync.js` asset that is
    exactly that freshly-built bundle.
 
 ## Before Starting
@@ -46,11 +46,11 @@ A release is only usable by the updater if all of these agree:
 3. Typecheck with `npm run typecheck`. Fix or report errors before continuing.
 
 4. Build with `npm run build`. This bakes the package version into the bundle, writes
-   `dist/markedit-bidirectional-scroll-sync.js`, and deploys a copy into the local MarkEdit scripts
+   `dist/markedit-bidirectional-preview-sync.js`, and deploys a copy into the local MarkEdit scripts
    folder.
 
 5. Verify the bundle carries the new version:
-   `grep -c "<new-version>" dist/markedit-bidirectional-scroll-sync.js` should be at least 1.
+   `grep -c "<new-version>" dist/markedit-bidirectional-preview-sync.js` should be at least 1.
    If it is 0, stop and investigate.
 
 6. Commit the release files:
@@ -62,13 +62,13 @@ A release is only usable by the updater if all of these agree:
 8. Push the branch and tag: `git push origin main` and `git push origin v<version>`.
 
 9. Publish the GitHub release with the updater asset attached:
-   `gh release create v<version> --title "v<version>" --notes "<changelog section>" dist/markedit-bidirectional-scroll-sync.js`
-   The uploaded asset name must remain `markedit-bidirectional-scroll-sync.js`.
+   `gh release create v<version> --title "v<version>" --notes "<changelog section>" dist/markedit-bidirectional-preview-sync.js`
+   The uploaded asset name must remain `markedit-bidirectional-preview-sync.js`.
 
 10. Verify the latest release exposes the exact asset:
     ```sh
-    url=$(curl -sS "https://api.github.com/repos/Nigelw/MarkEdit-bidirectional-scroll-sync/releases/latest" \
-      | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const a=JSON.parse(d).assets||[];const m=a.find(x=>x.name==='markedit-bidirectional-scroll-sync.js');console.log(m?m.browser_download_url:'MISSING')})")
+    url=$(curl -sS "https://api.github.com/repos/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest" \
+      | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const a=JSON.parse(d).assets||[];const m=a.find(x=>x.name==='markedit-bidirectional-preview-sync.js');console.log(m?m.browser_download_url:'MISSING')})")
     echo "asset url: $url"
     [ "$url" = MISSING ] || curl -sSfI "$url" | head -1
     ```

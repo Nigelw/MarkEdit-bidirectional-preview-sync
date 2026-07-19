@@ -1,7 +1,7 @@
 {
-  "name": "markedit-bidirectional-scroll-sync",
+  "name": "markedit-bidirectional-preview-sync",
   "version": "0.1.0",
-  "description": "Best-effort bidirectional scroll sync for MarkEdit and MarkEdit-preview.",
+  "description": "Best-effort bidirectional preview sync for MarkEdit and MarkEdit-preview.",
   "license": "MIT",
   "scripts": {
     "build": "vite build",

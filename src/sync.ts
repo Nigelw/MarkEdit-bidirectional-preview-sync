@@ -8,6 +8,15 @@ import { readSettings, writeSettings } from './settingsFile';
 
 type SyncSource = 'editor' | 'preview' | 'none';
 type Disposable = () => void;
+type IntegrationState = {
+  isActive?: boolean;
+};
+
+declare global {
+  interface Window {
+    __markeditBidirectionalScrollSync__?: IntegrationState;
+  }
+}
 
 const PREVIEW_SELECTOR = '.markdown-body';
 const LOCK_RELEASE_MS = 180;
@@ -74,6 +83,7 @@ export class BidirectionalScrollSync {
     this.nativeSyncAlertShown = false;
     this.source = 'none';
     this.started = false;
+    setIntegrationActive(false);
   }
 
   showSetupStatus(): void {
@@ -126,6 +136,7 @@ export class BidirectionalScrollSync {
         this.blockIndex.detach();
         this.attachedPreviewPane = undefined;
         this.started = false;
+        setIntegrationActive(false);
       }
       if (!this.waitingForPreviewLogged) {
         console.warn('[Bidirectional Scroll Sync] MarkEdit-preview pane not found; waiting for it to appear.');
@@ -144,6 +155,7 @@ export class BidirectionalScrollSync {
     this.attachedPreviewPane = previewPane;
     this.waitingForPreviewLogged = false;
     this.started = true;
+    setIntegrationActive(true);
     console.info('[Bidirectional Scroll Sync] Attached to MarkEdit-preview pane.');
   }
 
@@ -445,4 +457,11 @@ function clamp(value: number, min: number, max: number): number {
 
 function isDisplayed(element: HTMLElement): boolean {
   return getComputedStyle(element).display !== 'none' && element.offsetParent !== null;
+}
+
+function setIntegrationActive(isActive: boolean): void {
+  window.__markeditBidirectionalScrollSync__ = {
+    ...window.__markeditBidirectionalScrollSync__,
+    isActive,
+  };
 }

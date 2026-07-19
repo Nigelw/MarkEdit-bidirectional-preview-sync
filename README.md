@@ -8,7 +8,7 @@ MarkEdit-preview can keep the preview aligned as you edit, but it does not move 
 
 This is particularly useful when using preview mode to proofread. When you spot an error, switching back to the editor takes you to the text you were just reading instead of making you hunt for it again. The preview-to-editor mapping doesn't need to be perfect to remove friction from this workflow; it just needs to be good.
 
-![MarkEdit Bidirectional Preview Sync demo](assets/screenrecording.gif)
+![MarkEdit Bidirectional Preview Sync demo](assets/screenrecording.mp4)
 
 ## Install
 

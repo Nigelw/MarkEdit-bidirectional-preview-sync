@@ -3,10 +3,11 @@ import type { JSONObject, JSONValue } from 'markedit-api';
 
 export const SETTINGS_NAMESPACE = 'extension.bidirectionalScrollSync';
 export const PREVIEW_SETTINGS_NAMESPACE = 'extension.markeditPreview';
+export type SyncTiming = 'afterScroll' | 'whileScrolling';
 
 export type Settings = {
   enabled: boolean;
-  liveSync: boolean;
+  syncTiming: SyncTiming;
   referenceRatio: number;
   animated: boolean;
   showSetupWarning: boolean;
@@ -14,12 +15,13 @@ export type Settings = {
 
 export function loadSettings(): Settings {
   const root = objectValue(MarkEdit.userSettings?.[SETTINGS_NAMESPACE]);
+  const syncTiming = syncTimingValue(root.syncTiming, 'afterScroll');
 
   return {
     enabled: booleanValue(root.enabled, true),
-    liveSync: booleanValue(root.liveSync, false),
+    syncTiming,
     referenceRatio: numberValue(root.referenceRatio, 0, 0, 1),
-    animated: booleanValue(root.animated, false),
+    animated: booleanValue(root.animated, syncTiming === 'afterScroll'),
     showSetupWarning: booleanValue(root.showSetupWarning, true),
   };
 }
@@ -45,6 +47,10 @@ function objectValue(value: JSONValue | undefined): JSONObject {
 
 function booleanValue(value: JSONValue | undefined, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function syncTimingValue(value: JSONValue | undefined, fallback: SyncTiming): SyncTiming {
+  return value === 'afterScroll' || value === 'whileScrolling' ? value : fallback;
 }
 
 function numberValue(value: JSONValue | undefined, fallback: number, min: number, max: number): number {

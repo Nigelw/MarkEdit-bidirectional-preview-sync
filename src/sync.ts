@@ -7,9 +7,16 @@ import type { Settings } from './settings';
 import { readSettings, writeSettings } from './settingsFile';
 
 type SyncSource = 'editor' | 'preview' | 'none';
+type IntegrationScrollSource = Exclude<SyncSource, 'none'>;
+type IntegrationScrollOptions = {
+  animated?: boolean;
+};
 type Disposable = () => void;
 type IntegrationState = {
   isActive?: boolean;
+  beginScroll?: (source: IntegrationScrollSource, options?: IntegrationScrollOptions) => void;
+  beginPreviewScroll?: (options?: IntegrationScrollOptions) => void;
+  beginEditorScroll?: (options?: IntegrationScrollOptions) => void;
 };
 
 declare global {
@@ -20,6 +27,7 @@ declare global {
 
 const PREVIEW_SELECTOR = '.markdown-body';
 const LOCK_RELEASE_MS = 180;
+const SMOOTH_LOCK_RELEASE_MS = 1200;
 
 export class BidirectionalScrollSync {
   private settings: Settings = loadSettings();
@@ -34,6 +42,7 @@ export class BidirectionalScrollSync {
   private nativeSyncAlertShown = false;
   private source: SyncSource = 'none';
   private releaseTimer: ReturnType<typeof setTimeout> | undefined;
+  private releaseScrollEndDispose: Disposable | undefined;
   private started = false;
 
   start(): void {
@@ -72,18 +81,14 @@ export class BidirectionalScrollSync {
       cancelAnimationFrame(this.attachFrame);
       this.attachFrame = undefined;
     }
-    if (this.releaseTimer !== undefined) {
-      clearTimeout(this.releaseTimer);
-      this.releaseTimer = undefined;
-    }
+    this.clearSourceLock();
 
     this.blockIndex.detach();
     this.attachedPreviewPane = undefined;
     this.waitingForPreviewLogged = false;
     this.nativeSyncAlertShown = false;
-    this.source = 'none';
     this.started = false;
-    setIntegrationActive(false);
+    this.publishIntegration(false);
   }
 
   showSetupStatus(): void {
@@ -136,7 +141,7 @@ export class BidirectionalScrollSync {
         this.blockIndex.detach();
         this.attachedPreviewPane = undefined;
         this.started = false;
-        setIntegrationActive(false);
+        this.publishIntegration(false);
       }
       if (!this.waitingForPreviewLogged) {
         console.warn('[Bidirectional Scroll Sync] MarkEdit-preview pane not found; waiting for it to appear.');
@@ -155,7 +160,7 @@ export class BidirectionalScrollSync {
     this.attachedPreviewPane = previewPane;
     this.waitingForPreviewLogged = false;
     this.started = true;
-    setIntegrationActive(true);
+    this.publishIntegration(true);
     console.info('[Bidirectional Scroll Sync] Attached to MarkEdit-preview pane.');
   }
 
@@ -194,7 +199,7 @@ export class BidirectionalScrollSync {
   }
 
   private addScrollListener(element: HTMLElement, handler: () => void): void {
-    if (!this.settings.liveSync && 'onscrollend' in window) {
+    if (this.settings.syncTiming === 'afterScroll' && 'onscrollend' in window) {
       element.addEventListener('scrollend', handler);
       this.scrollDisposables.push(() => element.removeEventListener('scrollend', handler));
       return;
@@ -246,7 +251,7 @@ export class BidirectionalScrollSync {
 
     this.withSource('editor', () => {
       scrollElementTo(previewPane, desired, this.settings.animated);
-      this.releaseSourceAfterScroll();
+      this.releaseSourceAfterScroll(previewPane, this.settings.animated);
     });
   }
 
@@ -263,7 +268,7 @@ export class BidirectionalScrollSync {
 
     this.withSource('preview', () => {
       scrollElementTo(editorScroller, desired, this.settings.animated);
-      this.releaseSourceAfterScroll();
+      this.releaseSourceAfterScroll(editorScroller, this.settings.animated);
     });
   }
 
@@ -344,15 +349,82 @@ export class BidirectionalScrollSync {
     action();
   }
 
-  private releaseSourceAfterScroll(): void {
+  private beginIntegrationScroll(source: IntegrationScrollSource, options: IntegrationScrollOptions = {}): void {
+    if (!this.started || !isIntegrationScrollSource(source)) {
+      return;
+    }
+
+    this.clearSourceLock();
+    this.source = source;
+
+    const element = source === 'preview' ? this.attachedPreviewPane : MarkEdit.editorView.scrollDOM;
+    if (element === undefined) {
+      this.releaseTimer = setTimeout(() => {
+        if (this.source === source) {
+          this.source = 'none';
+        }
+        this.releaseTimer = undefined;
+      }, LOCK_RELEASE_MS);
+      return;
+    }
+
+    this.releaseSourceAfterScroll(element, options.animated ?? this.settings.animated);
+  }
+
+  private releaseSourceAfterScroll(element: HTMLElement, animated: boolean): void {
     if (this.releaseTimer !== undefined) {
       clearTimeout(this.releaseTimer);
+    }
+    if (this.releaseScrollEndDispose !== undefined) {
+      this.releaseScrollEndDispose();
+      this.releaseScrollEndDispose = undefined;
+    }
+
+    const release = () => {
+      if (this.releaseTimer !== undefined) {
+        clearTimeout(this.releaseTimer);
+        this.releaseTimer = undefined;
+      }
+      if (this.releaseScrollEndDispose !== undefined) {
+        this.releaseScrollEndDispose();
+        this.releaseScrollEndDispose = undefined;
+      }
+      this.source = 'none';
+    };
+
+    if (animated && 'onscrollend' in window) {
+      element.addEventListener('scrollend', release, { once: true });
+      this.releaseScrollEndDispose = () => element.removeEventListener('scrollend', release);
+      this.releaseTimer = setTimeout(release, SMOOTH_LOCK_RELEASE_MS);
+      return;
     }
 
     this.releaseTimer = setTimeout(() => {
       this.source = 'none';
       this.releaseTimer = undefined;
-    }, LOCK_RELEASE_MS);
+    }, animated ? SMOOTH_LOCK_RELEASE_MS : LOCK_RELEASE_MS);
+  }
+
+  private clearSourceLock(): void {
+    if (this.releaseTimer !== undefined) {
+      clearTimeout(this.releaseTimer);
+      this.releaseTimer = undefined;
+    }
+    if (this.releaseScrollEndDispose !== undefined) {
+      this.releaseScrollEndDispose();
+      this.releaseScrollEndDispose = undefined;
+    }
+    this.source = 'none';
+  }
+
+  private publishIntegration(isActive: boolean): void {
+    window.__markeditBidirectionalScrollSync__ = {
+      ...window.__markeditBidirectionalScrollSync__,
+      isActive,
+      beginScroll: (source, options) => this.beginIntegrationScroll(source, options),
+      beginPreviewScroll: (options) => this.beginIntegrationScroll('preview', options),
+      beginEditorScroll: (options) => this.beginIntegrationScroll('editor', options),
+    };
   }
 
   private findPreviewPane(): HTMLElement | undefined {
@@ -459,9 +531,6 @@ function isDisplayed(element: HTMLElement): boolean {
   return getComputedStyle(element).display !== 'none' && element.offsetParent !== null;
 }
 
-function setIntegrationActive(isActive: boolean): void {
-  window.__markeditBidirectionalScrollSync__ = {
-    ...window.__markeditBidirectionalScrollSync__,
-    isActive,
-  };
+function isIntegrationScrollSource(source: unknown): source is IntegrationScrollSource {
+  return source === 'editor' || source === 'preview';
 }

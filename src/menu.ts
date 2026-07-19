@@ -13,12 +13,12 @@ export function installMenu(controller: BidirectionalScrollSync): void {
     title: EXTENSION_NAME,
     children: [
       {
-        title: 'Sync After Scrolling Stops',
+        title: 'Sync After Scroll',
         action: () => void setSyncTiming('afterScroll', controller),
         state: () => ({ isSelected: controller.syncTiming() === 'afterScroll' }),
       },
       {
-        title: 'Sync While Scrolling',
+        title: 'Sync During Scroll',
         action: () => void setSyncTiming('whileScrolling', controller),
         state: () => ({ isSelected: controller.syncTiming() === 'whileScrolling' }),
       },

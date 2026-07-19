@@ -3,9 +3,19 @@
 Best-effort bidirectional scroll synchronization for MarkEdit and
 [MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview).
 
+**[Download the latest release](https://github.com/Nigelw/MarkEdit-bidirectional-scroll-sync/releases/latest/download/markedit-bidirectional-scroll-sync.js)** then see [Install](#install) below.
+
 MarkEdit-preview's built-in scroll sync is editor-to-preview only. This extension
 owns both directions with one source lock, so preview scrolling can move the
 editor without triggering a competing preview correction.
+
+## Install
+
+1. Download `markedit-bidirectional-scroll-sync.js` from the
+   [latest GitHub release](https://github.com/Nigelw/MarkEdit-bidirectional-scroll-sync/releases/latest).
+2. Move it into MarkEdit's scripts folder:
+   `~/Library/Containers/app.cyan.markedit/Data/Documents/scripts/`
+3. Quit and reopen MarkEdit.
 
 ## Requirements
 
@@ -39,7 +49,8 @@ Optional settings live under `extension.bidirectionalScrollSync`:
       "syncTiming": "afterScroll",
       "referenceRatio": 0,
       "animated": true,
-      "showSetupWarning": true
+      "showSetupWarning": true,
+      "update": "notify"
   }
 }
 ```
@@ -53,6 +64,9 @@ Optional settings live under `extension.bidirectionalScrollSync`:
 - `animated`: use smooth scroll for programmatic sync. When omitted, this
   defaults to `true` for `"afterScroll"` sync and `false` for
   `"whileScrolling"` sync.
+- `update`: controls GitHub update checks. Use `"notify"` to ask before
+  installing, `"automatic"` to download newer releases silently and prompt for a
+  restart, or `"never"` to disable automatic checks.
 
 You can switch `syncTiming` without relaunching MarkEdit from
 *Extensions → Bidirectional Scroll Sync → Sync After Scrolling Stops* or
@@ -63,6 +77,19 @@ reattaches automatically if it appears later or is replaced. Normal preview mode
 changes do not require manual intervention. Settings edited manually in
 `settings.json` are read at startup, so quit and reopen MarkEdit after changing
 them outside this extension's menu.
+
+## Staying Up To Date
+
+The extension checks its
+[GitHub releases](https://github.com/Nigelw/MarkEdit-bidirectional-scroll-sync/releases)
+for a newer version shortly after MarkEdit launches, at most once a week. You can
+also run *Extensions → Bidirectional Scroll Sync → Check for Updates...* at any
+time. When a newer release is found, the extension downloads the release asset
+named `markedit-bidirectional-scroll-sync.js` and replaces its own installed
+script file; the new version takes effect after restarting MarkEdit.
+
+The menu also includes *Visit GitHub Project* for opening the repository page in
+your default browser.
 
 ## Extension Integration
 
@@ -100,4 +127,5 @@ npm run build
 ```
 
 The build uses `markedit-vite` to output a single CommonJS user script and copy
-it into MarkEdit's scripts folder.
+it into MarkEdit's scripts folder. Developer notes and the release process live
+in [AGENTS.md](AGENTS.md).

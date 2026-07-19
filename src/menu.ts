@@ -1,32 +1,17 @@
 import { MarkEdit } from 'markedit-api';
 import type { MenuItem } from 'markedit-api';
 
-import { loadSettings, markEditPreviewSyncScrollStatus, SETTINGS_NAMESPACE, settingsObject } from './settings';
+import { EXTENSION_NAME, REPO_URL } from './constants';
+import { loadSettings, SETTINGS_NAMESPACE, settingsObject } from './settings';
 import type { SyncTiming } from './settings';
 import type { BidirectionalScrollSync } from './sync';
 import { readSettings, writeSettings } from './settingsFile';
+import { checkForUpdates } from './updater';
 
 export function installMenu(controller: BidirectionalScrollSync): void {
   MarkEdit.addMainMenuItem({
-    title: 'Bidirectional Scroll Sync',
+    title: EXTENSION_NAME,
     children: [
-      {
-        title: 'Check Setup',
-        action: () => {
-          // The controller is not needed for this static setup guidance.
-          void MarkEdit.showAlert({
-            title: 'Bidirectional Scroll Sync',
-            message: [
-              `MarkEdit-preview syncScroll: ${markEditPreviewSyncScrollStatus()}.`,
-              '',
-              'This extension runs automatically when MarkEdit-preview syncScroll is disabled.',
-              'Quit and reopen MarkEdit after changing MarkEdit-preview syncScroll.',
-            ].join('\n'),
-            buttons: ['OK'],
-          });
-        },
-      },
-      { separator: true },
       {
         title: 'Sync After Scrolling Stops',
         action: () => void setSyncTiming('afterScroll', controller),
@@ -49,6 +34,14 @@ export function installMenu(controller: BidirectionalScrollSync): void {
             buttons: ['OK'],
           });
         },
+      },
+      {
+        title: 'Visit GitHub Project',
+        action: () => openURL(REPO_URL),
+      },
+      {
+        title: 'Check for Updates...',
+        action: () => void checkForUpdates(loadSettings().update, true),
       },
     ],
   } satisfies MenuItem);
@@ -98,4 +91,14 @@ async function reloadMarkEditSettings(parsed: Record<string, unknown>): Promise<
     ...settingsObject(MarkEdit.userSettings?.[SETTINGS_NAMESPACE]),
     syncTiming: settings.syncTiming,
   };
+}
+
+function openURL(url: string): void {
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }

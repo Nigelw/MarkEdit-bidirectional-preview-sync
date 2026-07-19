@@ -1,9 +1,11 @@
 import { MarkEdit } from 'markedit-api';
 import type { JSONObject, JSONValue } from 'markedit-api';
 
-export const SETTINGS_NAMESPACE = 'extension.bidirectionalScrollSync';
-export const PREVIEW_SETTINGS_NAMESPACE = 'extension.markeditPreview';
+import { PREVIEW_SETTINGS_NAMESPACE, SETTINGS_NAMESPACE } from './constants';
+
+export { PREVIEW_SETTINGS_NAMESPACE, SETTINGS_NAMESPACE };
 export type SyncTiming = 'afterScroll' | 'whileScrolling';
+export type UpdateBehavior = 'automatic' | 'notify' | 'never';
 
 export type Settings = {
   enabled: boolean;
@@ -11,6 +13,7 @@ export type Settings = {
   referenceRatio: number;
   animated: boolean;
   showSetupWarning: boolean;
+  update: UpdateBehavior;
 };
 
 export function loadSettings(): Settings {
@@ -23,6 +26,7 @@ export function loadSettings(): Settings {
     referenceRatio: numberValue(root.referenceRatio, 0, 0, 1),
     animated: booleanValue(root.animated, syncTiming === 'afterScroll'),
     showSetupWarning: booleanValue(root.showSetupWarning, true),
+    update: updateBehaviorValue(root.update, 'notify'),
   };
 }
 
@@ -51,6 +55,10 @@ function booleanValue(value: JSONValue | undefined, fallback: boolean): boolean 
 
 function syncTimingValue(value: JSONValue | undefined, fallback: SyncTiming): SyncTiming {
   return value === 'afterScroll' || value === 'whileScrolling' ? value : fallback;
+}
+
+function updateBehaviorValue(value: JSONValue | undefined, fallback: UpdateBehavior): UpdateBehavior {
+  return value === 'automatic' || value === 'notify' || value === 'never' ? value : fallback;
 }
 
 function numberValue(value: JSONValue | undefined, fallback: number, min: number, max: number): number {

@@ -1,11 +1,17 @@
 import { MarkEdit } from 'markedit-api';
 
 import { installMenu } from './src/menu';
+import { loadSettings } from './src/settings';
 import { BidirectionalScrollSync } from './src/sync';
+import { checkForUpdates } from './src/updater';
 
 const controller = new BidirectionalScrollSync();
 
 installMenu(controller);
+
+MarkEdit.onAppReady(() => {
+  setTimeout(() => void checkForUpdates(loadSettings().update), 2000);
+});
 
 let started = false;
 function start(): void {

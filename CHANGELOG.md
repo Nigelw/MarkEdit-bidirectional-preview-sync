@@ -14,3 +14,9 @@
   `"whileScrolling"` modes.
 - Added an integration signal on `window.__markeditBidirectionalScrollSync__`
   so other extensions can mark intentional preview or editor navigation scrolls.
+- Changed `"afterScroll"` timing to wait for scroll events to settle instead of
+  relying on native `scrollend`, so inertial scrolling can finish before sync.
+- Integration scroll signals can now override the paired sync animation for that
+  navigation, including smooth outline navigation while using `"whileScrolling"`.
+- Added menu items to switch between syncing after scrolling stops and syncing
+  while scrolling without relaunching MarkEdit.

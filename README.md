@@ -45,9 +45,8 @@ Optional settings live under `extension.bidirectionalScrollSync`:
 ```
 
 - `syncTiming`: controls when the paired view updates. The default
-  `"afterScroll"` waits for scrolling to finish when the WebKit runtime supports
-  `scrollend`; `"whileScrolling"` updates continuously from passive scroll
-  events coalesced with `requestAnimationFrame`.
+  `"afterScroll"` waits for scrolling to settle; `"whileScrolling"` updates
+  continuously from passive scroll events coalesced with `requestAnimationFrame`.
 - `referenceRatio`: the viewport band used for mapping between panes. The
   default `0` anchors the top visible editor line to the top of the preview, so
   headings and titles at the top of the editor remain visible in the preview.
@@ -55,36 +54,42 @@ Optional settings live under `extension.bidirectionalScrollSync`:
   defaults to `true` for `"afterScroll"` sync and `false` for
   `"whileScrolling"` sync.
 
+You can switch `syncTiming` without relaunching MarkEdit from
+*Extensions → Bidirectional Scroll Sync → Sync After Scrolling Stops* or
+*Sync While Scrolling*.
+
 The extension watches for MarkEdit-preview's `.markdown-body` pane and
 reattaches automatically if it appears later or is replaced. Normal preview mode
-changes do not require manual intervention. Settings are read at startup, so
-quit and reopen MarkEdit after changing settings.
+changes do not require manual intervention. Settings edited manually in
+`settings.json` are read at startup, so quit and reopen MarkEdit after changing
+them outside this extension's menu.
 
 ## Extension Integration
 
 Other extensions can signal intentional navigation scrolls through
 `window.__markeditBidirectionalScrollSync__`. Call this immediately before
-starting a programmatic scroll so this extension treats that view as the scroll
-source and avoids competing corrections while the scroll is in progress:
+starting programmatic navigation so this extension treats that view as the
+scroll source and avoids competing corrections while the scroll is in progress:
 
 ```js
 const sync = window.__markeditBidirectionalScrollSync__;
-sync?.beginPreviewScroll?.({ animated: true });
-previewPane.scrollTo({ top, behavior: 'smooth' });
+sync?.beginEditorScroll?.({ animated: true });
+view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'start' }) });
 ```
 
 Available methods:
 
 - `beginPreviewScroll({ animated })`: the preview is about to scroll because of
-  external navigation, such as an outline/sidebar click.
-- `beginEditorScroll({ animated })`: the editor is about to scroll because of
   external navigation.
+- `beginEditorScroll({ animated })`: the editor is about to scroll because of
+  external navigation, such as an outline/sidebar click.
 - `beginScroll(source, { animated })`: generic form where `source` is
   `"preview"` or `"editor"`.
 
-Set `animated` to match the scroll you are about to start. Smooth scrolls hold
-the source lock until `scrollend` when available, with a timeout fallback; instant
-scrolls release quickly.
+Set `animated` to the behavior the paired sync scroll should use. This lets a
+navigation extension request smooth preview movement even when this extension is
+configured for `"whileScrolling"` sync. Smooth source locks use a longer timeout;
+instant locks release quickly.
 
 ## Development
 

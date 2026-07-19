@@ -3,7 +3,7 @@ import { MarkEdit } from 'markedit-api';
 
 import { PreviewBlockIndex, type BlockEntry } from './previewBlocks';
 import { loadSettings, markEditPreviewSyncScrollDisabled, PREVIEW_SETTINGS_NAMESPACE, settingsObject } from './settings';
-import type { Settings } from './settings';
+import type { Settings, SyncTiming } from './settings';
 import { readSettings, writeSettings } from './settingsFile';
 
 type SyncSource = 'editor' | 'preview' | 'none';
@@ -12,6 +12,10 @@ type IntegrationScrollOptions = {
   animated?: boolean;
 };
 type Disposable = () => void;
+type SourceAnimationOverride = {
+  source: IntegrationScrollSource;
+  animated: boolean;
+};
 type IntegrationState = {
   isActive?: boolean;
   beginScroll?: (source: IntegrationScrollSource, options?: IntegrationScrollOptions) => void;
@@ -27,6 +31,7 @@ declare global {
 
 const PREVIEW_SELECTOR = '.markdown-body';
 const LOCK_RELEASE_MS = 180;
+const SCROLL_SETTLE_MS = 220;
 const SMOOTH_LOCK_RELEASE_MS = 1200;
 
 export class BidirectionalScrollSync {
@@ -41,6 +46,7 @@ export class BidirectionalScrollSync {
   private waitingForPreviewLogged = false;
   private nativeSyncAlertShown = false;
   private source: SyncSource = 'none';
+  private sourceAnimationOverride: SourceAnimationOverride | undefined;
   private releaseTimer: ReturnType<typeof setTimeout> | undefined;
   private releaseScrollEndDispose: Disposable | undefined;
   private started = false;
@@ -108,6 +114,40 @@ export class BidirectionalScrollSync {
       ].join('\n'),
       buttons: ['OK'],
     });
+  }
+
+  reloadSettings(): void {
+    this.settings = loadSettings();
+
+    if (!this.settings.enabled) {
+      this.stop();
+      return;
+    }
+
+    if (!markEditPreviewSyncScrollDisabled()) {
+      this.stop();
+      void this.warnAboutNativeSync();
+      return;
+    }
+
+    if (!this.started) {
+      this.start();
+      return;
+    }
+
+    const previewPane = this.attachedPreviewPane;
+    if (previewPane === undefined) {
+      this.attachCurrentPreviewPane();
+      return;
+    }
+
+    this.detachScrollListeners();
+    this.clearSourceLock();
+    this.attachScrollListeners(MarkEdit.editorView.scrollDOM, previewPane);
+  }
+
+  syncTiming(): SyncTiming {
+    return this.settings.syncTiming;
   }
 
   private observePreviewPane(): void {
@@ -199,9 +239,25 @@ export class BidirectionalScrollSync {
   }
 
   private addScrollListener(element: HTMLElement, handler: () => void): void {
-    if (this.settings.syncTiming === 'afterScroll' && 'onscrollend' in window) {
-      element.addEventListener('scrollend', handler);
-      this.scrollDisposables.push(() => element.removeEventListener('scrollend', handler));
+    if (this.settings.syncTiming === 'afterScroll') {
+      let settleTimer: ReturnType<typeof setTimeout> | undefined;
+      const settledHandler = () => {
+        if (settleTimer !== undefined) {
+          clearTimeout(settleTimer);
+        }
+        settleTimer = setTimeout(() => {
+          settleTimer = undefined;
+          handler();
+        }, SCROLL_SETTLE_MS);
+      };
+
+      element.addEventListener('scroll', settledHandler, { passive: true });
+      this.scrollDisposables.push(() => {
+        if (settleTimer !== undefined) {
+          clearTimeout(settleTimer);
+        }
+        element.removeEventListener('scroll', settledHandler);
+      });
       return;
     }
 
@@ -250,8 +306,9 @@ export class BidirectionalScrollSync {
     }
 
     this.withSource('editor', () => {
-      scrollElementTo(previewPane, desired, this.settings.animated);
-      this.releaseSourceAfterScroll(previewPane, this.settings.animated);
+      const animated = this.animatedForSyncFrom('editor');
+      scrollElementTo(previewPane, desired, animated);
+      this.releaseSourceAfterScroll(previewPane, animated);
     });
   }
 
@@ -267,8 +324,9 @@ export class BidirectionalScrollSync {
     }
 
     this.withSource('preview', () => {
-      scrollElementTo(editorScroller, desired, this.settings.animated);
-      this.releaseSourceAfterScroll(editorScroller, this.settings.animated);
+      const animated = this.animatedForSyncFrom('preview');
+      scrollElementTo(editorScroller, desired, animated);
+      this.releaseSourceAfterScroll(editorScroller, animated);
     });
   }
 
@@ -356,19 +414,24 @@ export class BidirectionalScrollSync {
 
     this.clearSourceLock();
     this.source = source;
-
-    const element = source === 'preview' ? this.attachedPreviewPane : MarkEdit.editorView.scrollDOM;
-    if (element === undefined) {
-      this.releaseTimer = setTimeout(() => {
-        if (this.source === source) {
-          this.source = 'none';
-        }
-        this.releaseTimer = undefined;
-      }, LOCK_RELEASE_MS);
-      return;
+    if (options.animated !== undefined) {
+      this.sourceAnimationOverride = {
+        source,
+        animated: options.animated,
+      };
     }
 
-    this.releaseSourceAfterScroll(element, options.animated ?? this.settings.animated);
+    this.releaseSourceAfterDelay(source, options.animated ?? this.settings.animated);
+  }
+
+  private releaseSourceAfterDelay(source: IntegrationScrollSource, animated: boolean): void {
+    this.releaseTimer = setTimeout(() => {
+      if (this.source === source) {
+        this.source = 'none';
+        this.sourceAnimationOverride = undefined;
+      }
+      this.releaseTimer = undefined;
+    }, animated ? SMOOTH_LOCK_RELEASE_MS : LOCK_RELEASE_MS);
   }
 
   private releaseSourceAfterScroll(element: HTMLElement, animated: boolean): void {
@@ -390,6 +453,7 @@ export class BidirectionalScrollSync {
         this.releaseScrollEndDispose = undefined;
       }
       this.source = 'none';
+      this.sourceAnimationOverride = undefined;
     };
 
     if (animated && 'onscrollend' in window) {
@@ -415,6 +479,14 @@ export class BidirectionalScrollSync {
       this.releaseScrollEndDispose = undefined;
     }
     this.source = 'none';
+    this.sourceAnimationOverride = undefined;
+  }
+
+  private animatedForSyncFrom(source: IntegrationScrollSource): boolean {
+    if (this.sourceAnimationOverride?.source === source) {
+      return this.sourceAnimationOverride.animated;
+    }
+    return this.settings.animated;
   }
 
   private publishIntegration(isActive: boolean): void {

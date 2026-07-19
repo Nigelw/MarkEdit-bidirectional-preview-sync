@@ -5,7 +5,7 @@ import { BidirectionalScrollSync } from './src/sync';
 
 const controller = new BidirectionalScrollSync();
 
-installMenu();
+installMenu(controller);
 
 let started = false;
 function start(): void {

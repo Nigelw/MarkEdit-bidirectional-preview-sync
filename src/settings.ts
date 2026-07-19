@@ -8,11 +8,8 @@ export type SyncTiming = 'afterScroll' | 'whileScrolling';
 export type UpdateBehavior = 'automatic' | 'notify' | 'never';
 
 export type Settings = {
-  enabled: boolean;
   syncTiming: SyncTiming;
   referenceRatio: number;
-  animated: boolean;
-  showSetupWarning: boolean;
   update: UpdateBehavior;
 };
 
@@ -21,11 +18,8 @@ export function loadSettings(): Settings {
   const syncTiming = syncTimingValue(root.syncTiming, 'afterScroll');
 
   return {
-    enabled: booleanValue(root.enabled, true),
     syncTiming,
     referenceRatio: numberValue(root.referenceRatio, 0, 0, 1),
-    animated: booleanValue(root.animated, syncTiming === 'afterScroll'),
-    showSetupWarning: booleanValue(root.showSetupWarning, true),
     update: updateBehaviorValue(root.update, 'notify'),
   };
 }
@@ -47,10 +41,6 @@ export function settingsObject(value: unknown): Record<string, unknown> {
 
 function objectValue(value: JSONValue | undefined): JSONObject {
   return settingsObject(value) as JSONObject;
-}
-
-function booleanValue(value: JSONValue | undefined, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback;
 }
 
 function syncTimingValue(value: JSONValue | undefined, fallback: SyncTiming): SyncTiming {

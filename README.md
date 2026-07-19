@@ -8,6 +8,8 @@ MarkEdit-preview can keep the preview aligned as you edit, but it does not move 
 
 This is particularly useful when using preview mode to proofread. When you spot an error, switching back to the editor takes you to the text you were just reading instead of making you hunt for it again. The preview-to-editor mapping doesn't need to be perfect to remove friction from this workflow; it just needs to be good.
 
+![MarkEdit Bidirectional Preview Sync demo](assets/screenrecording.gif)
+
 ## Install
 
 1. Download `markedit-bidirectional-preview-sync.js` from the [latest GitHub release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest).
@@ -16,7 +18,9 @@ This is particularly useful when using preview mode to proofread. When you spot 
 
 ## Requirements
 
-Disable MarkEdit-preview's native sync first:
+MarkEdit-preview's native scroll sync must be disabled before this extension can run. (Running both sync systems at once would cause correction jumps.) If native sync is enabled, this extension disables itself and shows a setup warning with a **Disable Sync Scroll** button. Click that button to let the extension update `settings.json` for you, then quit and reopen MarkEdit so MarkEdit-preview reloads with sync disabled in every open document.
+
+If you prefer to make the change manually, set MarkEdit-preview's `syncScroll` option to `false`:
 
 ```json
 {
@@ -26,22 +30,17 @@ Disable MarkEdit-preview's native sync first:
 }
 ```
 
-If `syncScroll` is enabled or unset, this extension refuses to start and shows a setup warning with a **Disable Sync Scroll** button. That button updates `settings.json` for you. Quit and reopen MarkEdit afterward so MarkEdit-preview reloads with sync disabled in every open document. Running both sync systems at once can cause correction jumps.
-
-When several documents are open, each document may show this setup warning. The button only updates `settings.json`; it does not relaunch MarkEdit.
-
 ## Settings
 
-Optional settings live under `extension.bidirectionalPreviewSync`:
+Use *Extensions -> Bidirectional Preview Sync -> Sync After Scrolling Stops* or *Sync While Scrolling* to change `syncTiming` from the extension's menu without relaunching MarkEdit.
+
+Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
 
 ```json
 {
     "extension.bidirectionalPreviewSync": {
-      "enabled": true,
       "syncTiming": "afterScroll",
       "referenceRatio": 0,
-      "animated": true,
-      "showSetupWarning": true,
       "update": "notify"
   }
 }
@@ -49,18 +48,13 @@ Optional settings live under `extension.bidirectionalPreviewSync`:
 
 - `syncTiming`: controls when the paired view updates. The default `"afterScroll"` waits for scrolling to settle; `"whileScrolling"` updates continuously from passive scroll events coalesced with `requestAnimationFrame`.
 - `referenceRatio`: the viewport band used for mapping between panes. The default `0` anchors the top visible editor line to the top of the preview, so headings and titles at the top of the editor remain visible in the preview.
-- `animated`: use smooth scroll for programmatic sync. When omitted, this defaults to `true` for `"afterScroll"` sync and `false` for `"whileScrolling"` sync.
 - `update`: controls GitHub update checks. Use `"notify"` to ask before installing, `"automatic"` to download newer releases silently and prompt for a restart, or `"never"` to disable automatic checks.
 
-You can switch `syncTiming` without relaunching MarkEdit from *Extensions -> Bidirectional Preview Sync -> Sync After Scrolling Stops* or *Sync While Scrolling*.
-
-The extension watches for MarkEdit-preview's `.markdown-body` pane and reattaches automatically if it appears later or is replaced. Normal preview mode changes do not require manual intervention. Settings edited manually in `settings.json` are read at startup, so quit and reopen MarkEdit after changing them outside this extension's menu.
+Settings edited manually in `settings.json` are read at startup, so quit and reopen MarkEdit after changing them outside this extension's menu.
 
 ## Staying Up To Date
 
 The extension checks its [GitHub releases](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases) for a newer version shortly after MarkEdit launches, at most once a week. You can also run *Extensions -> Bidirectional Preview Sync -> Check for Updates...* at any time. When a newer release is found, the extension downloads the release asset named `markedit-bidirectional-preview-sync.js` and replaces its own installed script file; the new version takes effect after restarting MarkEdit.
-
-The menu also includes *Visit GitHub Project* for opening the repository page in your default browser.
 
 ## Extension Integration
 
@@ -78,7 +72,7 @@ Available methods:
 - `beginEditorScroll({ animated })`: the editor is about to scroll because of external navigation, such as an outline/sidebar click.
 - `beginScroll(source, { animated })`: generic form where `source` is `"preview"` or `"editor"`.
 
-Set `animated` to the behavior the paired sync scroll should use. This lets a navigation extension request smooth preview movement even when this extension is configured for `"whileScrolling"` sync. Smooth source locks use a longer timeout; instant locks release quickly.
+Set `animated` to the behavior the paired sync scroll should use. This lets a navigation extension request smooth preview movement even when this extension is using `"whileScrolling"` sync. Smooth source locks use a longer timeout; instant locks release quickly.
 
 ## Development
 

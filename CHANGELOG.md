@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removed the `enabled`, `animated`, and `showSetupWarning` settings.
+
 ## 1.0.0 (2026-07-19)
 
 Initial release

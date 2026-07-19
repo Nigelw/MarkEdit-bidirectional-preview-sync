@@ -55,11 +55,6 @@ export class BidirectionalPreviewSync {
     this.stop();
     this.settings = loadSettings();
 
-    if (!this.settings.enabled) {
-      console.info('[Bidirectional Preview Sync] Disabled by settings.');
-      return;
-    }
-
     if (!markEditPreviewSyncScrollDisabled()) {
       void this.warnAboutNativeSync();
       return;
@@ -118,11 +113,6 @@ export class BidirectionalPreviewSync {
 
   reloadSettings(): void {
     this.settings = loadSettings();
-
-    if (!this.settings.enabled) {
-      this.stop();
-      return;
-    }
 
     if (!markEditPreviewSyncScrollDisabled()) {
       this.stop();
@@ -421,7 +411,7 @@ export class BidirectionalPreviewSync {
       };
     }
 
-    this.releaseSourceAfterDelay(source, options.animated ?? this.settings.animated);
+    this.releaseSourceAfterDelay(source, options.animated ?? this.defaultAnimated());
   }
 
   private releaseSourceAfterDelay(source: IntegrationScrollSource, animated: boolean): void {
@@ -486,7 +476,11 @@ export class BidirectionalPreviewSync {
     if (this.sourceAnimationOverride?.source === source) {
       return this.sourceAnimationOverride.animated;
     }
-    return this.settings.animated;
+    return this.defaultAnimated();
+  }
+
+  private defaultAnimated(): boolean {
+    return this.settings.syncTiming === 'afterScroll';
   }
 
   private publishIntegration(isActive: boolean): void {
@@ -509,7 +503,7 @@ export class BidirectionalPreviewSync {
       "Bidirectional Preview Sync needs to turn off MarkEdit-preview's built-in Sync Scroll setting.";
 
     console.warn(`[Bidirectional Preview Sync] ${message}`);
-    if (!this.settings.showSetupWarning || this.nativeSyncAlertShown) {
+    if (this.nativeSyncAlertShown) {
       return;
     }
     this.nativeSyncAlertShown = true;

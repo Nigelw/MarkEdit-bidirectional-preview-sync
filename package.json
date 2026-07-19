@@ -1,6 +1,6 @@
 {
   "name": "markedit-bidirectional-preview-sync",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Best-effort bidirectional preview sync for MarkEdit and MarkEdit-preview.",
   "license": "MIT",
   "scripts": {

@@ -2,15 +2,9 @@
 
 ## Unreleased
 
-### New
+## 1.0.0 (2026-07-19)
 
-- Renamed the extension to MarkEdit Bidirectional Preview Sync, including the
-  package name, updater asset, settings namespace, repository links, and
-  integration global.
-- Added an in-app update checker backed by GitHub releases.
-- Added extension-menu links to check for updates and open the GitHub project.
-- Added a release skill and developer notes for publishing updater-compatible
-  releases.
+Initial release
 
 ## 0.1.0 (2026-07-19)
 

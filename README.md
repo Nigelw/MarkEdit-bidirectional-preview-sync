@@ -2,7 +2,7 @@
 
 Keeps [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)’s editor and preview panes synchronized as you switch and scroll between them.
 
-[MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview) can keep the preview aligned as you edit, but it doesn't move the editor when you scroll the preview. This extension keeps both panes aligned, so you can move naturally between reading the rendered document and editing the source.
+[MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview) can keep the preview aligned as you edit but it’s one-way only; when you scroll the preview it doesn't move the editor. This extension keeps both panes aligned, so you can move naturally between reading the rendered document and editing the source.
 
 This is particularly useful when proofreading in preview mode. When you spot an error, switching back to the editor takes you to the text you were just reading instead of making you hunt for it again. The preview-to-editor mapping doesn't need to be perfect to remove friction from this workflow; it just needs to be good. This extension easily clears that bar. It also plays nicely with my [Outline Sidebar](https://github.com/Nigelw/MarkEdit-outline-sidebar) extension.
 
@@ -15,10 +15,11 @@ This is particularly useful when proofreading in preview mode. When you spot an 
 1. Download `markedit-bidirectional-preview-sync.js` from the [latest GitHub release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest).
 2. Move it into MarkEdit's scripts folder: `~/Library/Containers/app.cyan.markedit/Data/Documents/scripts/`
 3. Quit and reopen MarkEdit.
+4. 
 
 ## Requirements
 
-MarkEdit-preview's native scroll sync must be disabled before this extension can run. (Running both sync systems at once would cause correction jumps.) If native sync is enabled, this extension disables itself and shows a setup warning with a **Disable Sync Scroll** button. Click that button to let the extension update `settings.json` for you, then quit and reopen MarkEdit so MarkEdit-preview reloads with sync disabled in every open document.
+MarkEdit-preview's native scroll sync must be disabled before this extension can run. (Running both sync systems at once would cause conflicts.) This extension offers to disable the MarkEdit-preview’s scroll sync so you don’t need to update `settings.json` manually. If native sync is enabled, this extension disables itself and shows a setup warning with a **Disable Sync Scroll** button. Click that button to let the extension update `settings.json` for you, then quit and reopen MarkEdit so MarkEdit-preview reloads with sync disabled in every open document.
 
 If you prefer to make the change manually, set MarkEdit-preview's `syncScroll` option to `false`:
 

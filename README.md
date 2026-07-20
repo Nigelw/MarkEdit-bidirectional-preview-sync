@@ -59,6 +59,7 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
   - `"afterScroll”` (default) and waits for scrolling to settle.
   - `"whileScrolling"` updates the paired view continuously as you scroll.
 - `mirrorPreviewSelection`: mirrors preview text selections into the editor when set to `true` (default).
+  - Deselecting mirrored preview text collapses the editor selection to a caret at the start of the previous mirrored source selection.
   - Styled text selects the content text in the source and tries to exclude Markdown formatting markers such as `**`, `_`, backticks, heading markers, and link destinations.
   - Mapping is best-effort. Simple prose, headings, emphasis, inline code, and links usually work best. Tables, task lists, images, generated anchors, HTML blocks, footnotes, entities, deeply nested markup, or plugin-rendered content may select a nearby source span rather than the exact characters.
 - `referenceRatio`: chooses which part of the visible viewport the extension tries to keep aligned between the editor and preview. Use a number from `0` to `1`:

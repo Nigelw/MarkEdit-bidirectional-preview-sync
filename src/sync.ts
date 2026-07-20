@@ -1,3 +1,4 @@
+import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { MarkEdit } from 'markedit-api';
 
@@ -44,6 +45,7 @@ export class BidirectionalPreviewSync {
   private editorFrame: number | undefined;
   private previewFrame: number | undefined;
   private selectionFrame: number | undefined;
+  private selectionMirrorTriggeredByPreview = false;
   private attachFrame: number | undefined;
   private attachedPreviewPane: HTMLElement | undefined;
   private waitingForPreviewLogged = false;
@@ -52,6 +54,7 @@ export class BidirectionalPreviewSync {
   private sourceAnimationOverride: SourceAnimationOverride | undefined;
   private releaseTimer: ReturnType<typeof setTimeout> | undefined;
   private releaseScrollEndDispose: Disposable | undefined;
+  private mirroredPreviewSelectionStart: number | undefined;
   private started = false;
 
   start(): void {
@@ -234,6 +237,8 @@ export class BidirectionalPreviewSync {
       cancelAnimationFrame(this.selectionFrame);
       this.selectionFrame = undefined;
     }
+    this.selectionMirrorTriggeredByPreview = false;
+    this.mirroredPreviewSelectionStart = undefined;
   }
 
   private attachScrollListeners(editorScroller: HTMLElement, previewPane: HTMLElement): void {
@@ -260,14 +265,15 @@ export class BidirectionalPreviewSync {
       return;
     }
 
-    const handler = () => this.schedulePreviewSelectionMirror(previewPane);
-    document.addEventListener('selectionchange', handler);
-    previewPane.addEventListener('mouseup', handler);
-    previewPane.addEventListener('keyup', handler);
+    const documentHandler = () => this.schedulePreviewSelectionMirror(previewPane);
+    const previewHandler = () => this.schedulePreviewSelectionMirror(previewPane, true);
+    document.addEventListener('selectionchange', documentHandler);
+    previewPane.addEventListener('mouseup', previewHandler);
+    previewPane.addEventListener('keyup', previewHandler);
     this.selectionDisposables.push(() => {
-      document.removeEventListener('selectionchange', handler);
-      previewPane.removeEventListener('mouseup', handler);
-      previewPane.removeEventListener('keyup', handler);
+      document.removeEventListener('selectionchange', documentHandler);
+      previewPane.removeEventListener('mouseup', previewHandler);
+      previewPane.removeEventListener('keyup', previewHandler);
     });
   }
 
@@ -326,20 +332,37 @@ export class BidirectionalPreviewSync {
     });
   }
 
-  private schedulePreviewSelectionMirror(previewPane: HTMLElement): void {
+  private schedulePreviewSelectionMirror(previewPane: HTMLElement, triggeredByPreview = false): void {
+    this.selectionMirrorTriggeredByPreview ||= triggeredByPreview;
+
     if (this.selectionFrame !== undefined) {
       cancelAnimationFrame(this.selectionFrame);
     }
 
     this.selectionFrame = requestAnimationFrame(() => {
       this.selectionFrame = undefined;
-      this.mirrorPreviewSelectionToEditor(previewPane);
+      const fromPreview = this.selectionMirrorTriggeredByPreview;
+      this.selectionMirrorTriggeredByPreview = false;
+      this.mirrorPreviewSelectionToEditor(previewPane, fromPreview);
     });
   }
 
-  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement): void {
+  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement, triggeredByPreview: boolean): void {
     const selection = window.getSelection();
     if (selection === null) {
+      if (triggeredByPreview) {
+        this.collapseMirroredPreviewSelection();
+      }
+      return;
+    }
+
+    if (selection.isCollapsed || selection.rangeCount === 0) {
+      if (
+        triggeredByPreview ||
+        (selection.anchorNode !== null && previewPane.contains(selection.anchorNode))
+      ) {
+        this.collapseMirroredPreviewSelection();
+      }
       return;
     }
 
@@ -350,12 +373,27 @@ export class BidirectionalPreviewSync {
       MarkEdit.editorView.state.doc,
     );
     if (mapped === undefined) {
+      this.mirroredPreviewSelectionStart = undefined;
       return;
     }
 
+    this.mirroredPreviewSelectionStart = mapped.range.from;
     MarkEdit.editorView.dispatch({
       selection: mapped.selection,
       effects: EditorView.scrollIntoView(mapped.range, { y: 'nearest' }),
+    });
+  }
+
+  private collapseMirroredPreviewSelection(): void {
+    if (this.mirroredPreviewSelectionStart === undefined) {
+      return;
+    }
+
+    const cursor = EditorSelection.cursor(this.mirroredPreviewSelectionStart);
+    this.mirroredPreviewSelectionStart = undefined;
+    MarkEdit.editorView.dispatch({
+      selection: EditorSelection.create([cursor]),
+      effects: EditorView.scrollIntoView(cursor, { y: 'nearest' }),
     });
   }
 

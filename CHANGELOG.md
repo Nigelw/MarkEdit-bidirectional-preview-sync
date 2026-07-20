@@ -6,6 +6,7 @@
 
 - Added preview-selection mirroring so selecting rendered preview text selects the matching Markdown source in the editor.
 - Added a hot-reloaded `mirrorPreviewSelection` setting and menu toggle.
+- Collapsing a mirrored preview text selection now collapses the editor selection to the start of the mirrored source selection.
 
 ## 1.0.2 (2026-07-20)
 

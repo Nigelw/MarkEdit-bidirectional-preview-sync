@@ -9,6 +9,7 @@ export type UpdateBehavior = 'automatic' | 'notify' | 'never';
 
 export type Settings = {
   syncTiming: SyncTiming;
+  mirrorPreviewSelection: boolean;
   referenceRatio: number;
   update: UpdateBehavior;
 };
@@ -19,6 +20,7 @@ export function loadSettings(): Settings {
 
   return {
     syncTiming,
+    mirrorPreviewSelection: booleanValue(root.mirrorPreviewSelection, true),
     referenceRatio: numberValue(root.referenceRatio, 0, 0, 1),
     update: updateBehaviorValue(root.update, 'notify'),
   };
@@ -49,6 +51,10 @@ function syncTimingValue(value: JSONValue | undefined, fallback: SyncTiming): Sy
 
 function updateBehaviorValue(value: JSONValue | undefined, fallback: UpdateBehavior): UpdateBehavior {
   return value === 'automatic' || value === 'notify' || value === 'never' ? value : fallback;
+}
+
+function booleanValue(value: JSONValue | undefined, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 function numberValue(value: JSONValue | undefined, fallback: number, min: number, max: number): number {

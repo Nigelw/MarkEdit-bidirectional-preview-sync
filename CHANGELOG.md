@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Added preview-selection mirroring so selecting rendered preview text selects the matching Markdown source in the editor.
+- Added a hot-reloaded `mirrorPreviewSelection` setting and menu toggle.
+
 ## 1.0.2 (2026-07-20)
 
 ### Improved

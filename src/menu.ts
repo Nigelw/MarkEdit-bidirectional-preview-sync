@@ -24,6 +24,12 @@ export function installMenu(controller: BidirectionalPreviewSync): void {
       },
       { separator: true },
       {
+        title: 'Mirror Preview Selection',
+        action: () => void setMirrorPreviewSelection(!controller.mirrorPreviewSelection(), controller),
+        state: () => ({ isSelected: controller.mirrorPreviewSelection() }),
+      },
+      { separator: true },
+      {
         title: 'About',
         action: () => {
           void MarkEdit.showAlert({
@@ -81,6 +87,40 @@ async function setSyncTiming(timing: SyncTiming, controller: BidirectionalPrevie
   controller.reloadSettings();
 }
 
+async function setMirrorPreviewSelection(enabled: boolean, controller: BidirectionalPreviewSync): Promise<void> {
+  const parsed = await readSettings();
+  if (parsed === undefined) {
+    await MarkEdit.showAlert({
+      title: "Couldn't update settings.json",
+      message:
+        "Your settings.json couldn't be parsed as JSON, so it was left untouched.\n\n" +
+        `Set "mirrorPreviewSelection": ${enabled} under "${SETTINGS_NAMESPACE}" manually.`,
+      buttons: ['OK'],
+    });
+    return;
+  }
+
+  parsed[SETTINGS_NAMESPACE] = {
+    ...settingsObject(parsed[SETTINGS_NAMESPACE]),
+    mirrorPreviewSelection: enabled,
+  };
+
+  const ok = await writeSettings(parsed);
+  if (!ok) {
+    await MarkEdit.showAlert({
+      title: 'Failed to write settings.json',
+      message:
+        'Could not write settings.json. Check permissions in the MarkEdit Documents folder, ' +
+        `or set "mirrorPreviewSelection": ${enabled} under "${SETTINGS_NAMESPACE}" manually.`,
+      buttons: ['OK'],
+    });
+    return;
+  }
+
+  await reloadMarkEditSettings(parsed);
+  controller.reloadSettings();
+}
+
 async function reloadMarkEditSettings(parsed: Record<string, unknown>): Promise<void> {
   const api = MarkEdit as typeof MarkEdit & { loadSettings?: () => void | Promise<void> };
   await api.loadSettings?.();
@@ -90,6 +130,7 @@ async function reloadMarkEditSettings(parsed: Record<string, unknown>): Promise<
   (MarkEdit.userSettings as Record<string, unknown>)[SETTINGS_NAMESPACE] = {
     ...settingsObject(MarkEdit.userSettings?.[SETTINGS_NAMESPACE]),
     syncTiming: settings.syncTiming,
+    mirrorPreviewSelection: settings.mirrorPreviewSelection,
   };
 }
 

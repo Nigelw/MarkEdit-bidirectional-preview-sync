@@ -2,6 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { MarkEdit } from 'markedit-api';
 
 import { PreviewBlockIndex, type BlockEntry } from './previewBlocks';
+import { previewSelectionToEditorSelection } from './previewSelection';
 import { loadSettings, markEditPreviewSyncScrollDisabled, PREVIEW_SETTINGS_NAMESPACE, settingsObject } from './settings';
 import type { Settings, SyncTiming } from './settings';
 import { readSettings, writeSettings } from './settingsFile';
@@ -39,8 +40,10 @@ export class BidirectionalPreviewSync {
   private readonly blockIndex = new PreviewBlockIndex();
   private disposables: Disposable[] = [];
   private scrollDisposables: Disposable[] = [];
+  private selectionDisposables: Disposable[] = [];
   private editorFrame: number | undefined;
   private previewFrame: number | undefined;
+  private selectionFrame: number | undefined;
   private attachFrame: number | undefined;
   private attachedPreviewPane: HTMLElement | undefined;
   private waitingForPreviewLogged = false;
@@ -69,6 +72,7 @@ export class BidirectionalPreviewSync {
       dispose();
     }
     this.detachScrollListeners();
+    this.detachSelectionListeners();
 
     if (this.editorFrame !== undefined) {
       cancelAnimationFrame(this.editorFrame);
@@ -77,6 +81,10 @@ export class BidirectionalPreviewSync {
     if (this.previewFrame !== undefined) {
       cancelAnimationFrame(this.previewFrame);
       this.previewFrame = undefined;
+    }
+    if (this.selectionFrame !== undefined) {
+      cancelAnimationFrame(this.selectionFrame);
+      this.selectionFrame = undefined;
     }
     if (this.attachFrame !== undefined) {
       cancelAnimationFrame(this.attachFrame);
@@ -132,12 +140,18 @@ export class BidirectionalPreviewSync {
     }
 
     this.detachScrollListeners();
+    this.detachSelectionListeners();
     this.clearSourceLock();
     this.attachScrollListeners(MarkEdit.editorView.scrollDOM, previewPane);
+    this.attachSelectionListeners(previewPane);
   }
 
   syncTiming(): SyncTiming {
     return this.settings.syncTiming;
+  }
+
+  mirrorPreviewSelection(): boolean {
+    return this.settings.mirrorPreviewSelection;
   }
 
   private observePreviewPane(): void {
@@ -185,8 +199,10 @@ export class BidirectionalPreviewSync {
     }
 
     this.detachScrollListeners();
+    this.detachSelectionListeners();
     this.blockIndex.attach(previewPane);
     this.attachScrollListeners(MarkEdit.editorView.scrollDOM, previewPane);
+    this.attachSelectionListeners(previewPane);
     this.attachedPreviewPane = previewPane;
     this.waitingForPreviewLogged = false;
     this.started = true;
@@ -209,6 +225,17 @@ export class BidirectionalPreviewSync {
     }
   }
 
+  private detachSelectionListeners(): void {
+    for (const dispose of this.selectionDisposables.splice(0)) {
+      dispose();
+    }
+
+    if (this.selectionFrame !== undefined) {
+      cancelAnimationFrame(this.selectionFrame);
+      this.selectionFrame = undefined;
+    }
+  }
+
   private attachScrollListeners(editorScroller: HTMLElement, previewPane: HTMLElement): void {
     const editorHandler = () => {
       if (this.source === 'preview') {
@@ -226,6 +253,22 @@ export class BidirectionalPreviewSync {
 
     this.addScrollListener(editorScroller, editorHandler);
     this.addScrollListener(previewPane, previewHandler);
+  }
+
+  private attachSelectionListeners(previewPane: HTMLElement): void {
+    if (!this.settings.mirrorPreviewSelection) {
+      return;
+    }
+
+    const handler = () => this.schedulePreviewSelectionMirror(previewPane);
+    document.addEventListener('selectionchange', handler);
+    previewPane.addEventListener('mouseup', handler);
+    previewPane.addEventListener('keyup', handler);
+    this.selectionDisposables.push(() => {
+      document.removeEventListener('selectionchange', handler);
+      previewPane.removeEventListener('mouseup', handler);
+      previewPane.removeEventListener('keyup', handler);
+    });
   }
 
   private addScrollListener(element: HTMLElement, handler: () => void): void {
@@ -280,6 +323,39 @@ export class BidirectionalPreviewSync {
         return;
       }
       this.syncPreviewToEditor(editorScroller, previewPane);
+    });
+  }
+
+  private schedulePreviewSelectionMirror(previewPane: HTMLElement): void {
+    if (this.selectionFrame !== undefined) {
+      cancelAnimationFrame(this.selectionFrame);
+    }
+
+    this.selectionFrame = requestAnimationFrame(() => {
+      this.selectionFrame = undefined;
+      this.mirrorPreviewSelectionToEditor(previewPane);
+    });
+  }
+
+  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement): void {
+    const selection = window.getSelection();
+    if (selection === null) {
+      return;
+    }
+
+    const mapped = previewSelectionToEditorSelection(
+      selection,
+      previewPane,
+      this.blockIndex.all(),
+      MarkEdit.editorView.state.doc,
+    );
+    if (mapped === undefined) {
+      return;
+    }
+
+    MarkEdit.editorView.dispatch({
+      selection: mapped.selection,
+      effects: EditorView.scrollIntoView(mapped.range, { y: 'nearest' }),
     });
   }
 

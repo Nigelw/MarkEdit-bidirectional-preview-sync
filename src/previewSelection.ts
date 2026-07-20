@@ -40,20 +40,19 @@ export function previewSelectionToEditorSelection(
     return undefined;
   }
 
-  const range = selection.getRangeAt(0);
-  const start = endpointFor(range.startContainer, range.startOffset, previewPane, entries);
-  const end = endpointFor(range.endContainer, range.endOffset, previewPane, entries);
-  if (start === undefined || end === undefined) {
+  const anchor = endpointFor(selection.anchorNode, selection.anchorOffset, previewPane, entries);
+  const focus = endpointFor(selection.focusNode, selection.focusOffset, previewPane, entries);
+  if (anchor === undefined || focus === undefined) {
     return undefined;
   }
 
-  const startPos = sourcePosForEndpoint(start, doc, 'start');
-  const endPos = sourcePosForEndpoint(end, doc, 'end');
-  if (startPos === undefined || endPos === undefined || startPos === endPos) {
+  const anchorPos = sourcePosForEndpoint(anchor, doc, 'anchor');
+  const focusPos = sourcePosForEndpoint(focus, doc, 'focus');
+  if (anchorPos === undefined || focusPos === undefined || anchorPos === focusPos) {
     return undefined;
   }
 
-  const editorRange = EditorSelection.range(startPos, endPos);
+  const editorRange = EditorSelection.range(anchorPos, focusPos);
   return {
     selection: EditorSelection.create([editorRange]),
     range: editorRange,
@@ -150,7 +149,7 @@ function firstTextNode(element: HTMLElement): globalThis.Text | undefined {
 function sourcePosForEndpoint(
   endpoint: Endpoint,
   doc: DocumentText,
-  side: 'start' | 'end',
+  side: 'anchor' | 'focus',
 ): number | undefined {
   const sourceRange = sourceRangeForBlock(endpoint.block, doc);
   if (sourceRange === undefined) {
@@ -159,36 +158,25 @@ function sourcePosForEndpoint(
 
   const domText = endpoint.block.element.textContent ?? '';
   if (domText.length === 0) {
-    return side === 'start' ? sourceRange.from : sourceRange.to;
+    return side === 'anchor' ? sourceRange.from : sourceRange.to;
   }
 
   const renderedOffset = renderedOffsetInBlock(endpoint.block.element, endpoint.node, endpoint.offset);
   if (renderedOffset === undefined) {
-    return side === 'start' ? sourceRange.from : sourceRange.to;
+    return side === 'anchor' ? sourceRange.from : sourceRange.to;
   }
 
   const source = doc.sliceString(sourceRange.from, sourceRange.to);
   const plain = markdownPlainChars(source, sourceRange.from);
-  const normalizedSource = normalizePlainChars(plain, { includeTrailingWhitespace: true });
-  const normalizedBefore = normalizeText(domText.slice(0, renderedOffset), {
-    includeTrailingWhitespace: side === 'end',
-  }).length;
-  const normalizedFull = normalizeText(domText, { includeTrailingWhitespace: true }).length;
+  const normalizedSource = normalizePlainChars(plain);
+  const normalizedBefore = normalizeText(domText.slice(0, renderedOffset)).length;
+  const normalizedFull = normalizeText(domText).length;
 
   if (normalizedSource.sourceStarts.length === 0) {
-    return side === 'start' ? sourceRange.from : sourceRange.to;
+    return side === 'anchor' ? sourceRange.from : sourceRange.to;
   }
 
-  return sourcePositionForRenderedOffset(normalizedBefore, normalizedFull, normalizedSource, {
-    side,
-    trimLeadingBoundaryWhitespace: shouldTrimLeadingBoundaryWhitespace(domText, renderedOffset),
-  });
-}
-
-function shouldTrimLeadingBoundaryWhitespace(text: string, offset: number): boolean {
-  const previous = text[offset - 1];
-  const current = text[offset];
-  return previous !== undefined && current !== undefined && /\s/.test(previous) && !/\s/.test(current);
+  return sourcePositionForRenderedOffset(normalizedBefore, normalizedFull, normalizedSource);
 }
 
 function sourceRangeForBlock(block: BlockEntry, doc: DocumentText): { from: number; to: number } | undefined {
@@ -220,10 +208,6 @@ function sourcePositionForRenderedOffset(
   renderedOffset: number,
   renderedLength: number,
   source: Normalized,
-  options: {
-    side: 'start' | 'end';
-    trimLeadingBoundaryWhitespace: boolean;
-  },
 ): number {
   if (renderedOffset <= 0) {
     return source.sourceStarts[0];
@@ -233,11 +217,8 @@ function sourcePositionForRenderedOffset(
     return source.sourceEnds[source.sourceEnds.length - 1];
   }
 
-  const index = options.side === 'start'
-    ? maybeTrimLeadingBoundaryWhitespace(source, sourceIndexForRenderedOffset(renderedOffset, renderedLength, source), options.trimLeadingBoundaryWhitespace)
-    : sourceIndexForRenderedOffset(renderedOffset - 1, renderedLength, source);
-
-  return options.side === 'start' ? source.sourceStarts[index] : source.sourceEnds[index];
+  const index = sourceIndexForRenderedOffset(renderedOffset, renderedLength, source);
+  return source.sourceStarts[index];
 }
 
 function sourceIndexForRenderedOffset(renderedOffset: number, renderedLength: number, source: Normalized): number {
@@ -253,29 +234,11 @@ function sourceIndexForRenderedOffset(renderedOffset: number, renderedLength: nu
   return clamp(Math.round(ratio * (source.sourceStarts.length - 1)), 0, source.sourceStarts.length - 1);
 }
 
-function maybeTrimLeadingBoundaryWhitespace(source: Normalized, index: number, shouldTrim: boolean): number {
-  if (!shouldTrim) {
-    return index;
-  }
-
-  let current = index;
-  while (current < source.text.length && /\s/.test(source.text[current])) {
-    current += 1;
-  }
-  return clamp(current, 0, source.text.length - 1);
+function normalizeText(text: string): string {
+  return normalizePlainChars(Array.from(text, (char, index) => ({ char, sourcePos: index, sourceEndPos: index + char.length }))).text;
 }
 
-function normalizeText(text: string, options: { includeTrailingWhitespace: boolean }): string {
-  return normalizePlainChars(
-    Array.from(text, (char, index) => ({ char, sourcePos: index, sourceEndPos: index + char.length })),
-    options,
-  ).text;
-}
-
-function normalizePlainChars(
-  chars: readonly PlainChar[],
-  options: { includeTrailingWhitespace: boolean },
-): Normalized {
+function normalizePlainChars(chars: readonly PlainChar[]): Normalized {
   let text = '';
   const sourceStarts: number[] = [];
   const sourceEnds: number[] = [];
@@ -297,12 +260,6 @@ function normalizePlainChars(
     sourceStarts.push(item.sourcePos);
     sourceEnds.push(item.sourceEndPos);
     pendingSpace = undefined;
-  }
-
-  if (options.includeTrailingWhitespace && pendingSpace !== undefined && text.length > 0) {
-    text += ' ';
-    sourceStarts.push(pendingSpace.sourcePos);
-    sourceEnds.push(pendingSpace.sourceEndPos);
   }
 
   return { text, sourceStarts, sourceEnds };

@@ -31,17 +31,34 @@ A release is only usable by the updater if all of these agree:
 1. Bump the version in `package.json` to the new version without a `v` prefix. Edit the file
    directly; do not run `npm version`, because it also creates a tag.
 
-2. Update `CHANGELOG.md`. This is interactive:
+2. Draft user-facing release notes. This is interactive:
    - Gather commits since the previous release with `git describe --tags --abbrev=0`, then
-     `git log <prev-tag>..HEAD --pretty=format:'%s%n%b%x1e'`. If there is no previous tag, use the
+     `git log --no-merges <prev-tag>..HEAD --pretty='%s%n%b'`. If there is no previous tag, use the
      whole history.
-   - Draft user-facing entries grouped under `### New`, `### Improved`, and `### Fixed`, including
-     anything already under `## Unreleased`. Skip release/version bumps, pure docs, CI, chore, merge
-     commits, and anything with no user-visible effect.
-   - Present the draft and ask the user to edit and confirm it. Do not write the final changelog
-     section until the user approves.
-   - Replace the `## Unreleased` section with a fresh empty `## Unreleased` plus
-     `## <version> (<YYYY-MM-DD>)` containing the approved notes.
+   - Move the `CHANGELOG.md` `Unreleased` notes into a new release section for the chosen version:
+     ```markdown
+     ## <version> (YYYY-MM-DD)
+
+     ### New
+
+     - ...
+     ```
+   - If `Unreleased` is empty, draft the section from the commits. Author it as short user-facing
+     Markdown, applying these rules:
+     - Draft release note entries under three Markdown `###` headings in this order: `New` for
+       major, headline features; `Improved` for quality-of-life updates and polish; `Fixed` for bug
+       fixes. Omit a bucket if it has no entries.
+     - Rewrite every entry from the user's perspective. Describe what changed for someone using the
+       extension.
+     - Drop anything with no user-visible impact: internal refactors, tests, CI changes, dependency
+       bumps, and doc edits.
+     - Use one succinct line per entry, with no jargon, file names, symbols, or implementation
+       details.
+   - Leave a fresh empty `## Unreleased` section above the new release section.
+   - Let the user review and edit before continuing. Show the new `CHANGELOG.md` section, offer to
+     open the file with `${EDITOR:-${VISUAL:-open}} CHANGELOG.md`, or take edits in conversation.
+     Get explicit confirmation before continuing.
+   - The GitHub release body must use the approved changelog section.
 
 3. Typecheck with `npm run typecheck`. Fix or report errors before continuing.
 

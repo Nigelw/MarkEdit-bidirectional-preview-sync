@@ -500,7 +500,7 @@ export class BidirectionalPreviewSync {
 
   private async warnAboutNativeSync(): Promise<void> {
     const message =
-      "Bidirectional Preview Sync needs to turn off MarkEdit-preview's built-in Sync Scroll setting.";
+      "To avoid conflicts, Bidirectional Preview Sync needs to disable MarkEdit-preview's one-way scroll sync feature.";
 
     console.warn(`[Bidirectional Preview Sync] ${message}`);
     if (this.nativeSyncAlertShown) {
@@ -512,9 +512,9 @@ export class BidirectionalPreviewSync {
 
   private async showNativeSyncAlert(message: string): Promise<void> {
     const action = await MarkEdit.showAlert({
-      title: 'Turn Off Built-In Sync Scroll',
-      message: `${message}\n\nAfter turning it off, quit and reopen MarkEdit for changes to take effect.`,
-      buttons: ['Turn Off Sync Scroll', 'Not Now'],
+      title: 'Disable Built-In Scroll Sync',
+      message: `${message}\n\nQuit and reopen MarkEdit after disabling it for the change to take effect.`,
+      buttons: ['Disable Scroll Sync', 'Not Now'],
     });
 
     if (action === 0) {
@@ -553,7 +553,7 @@ export class BidirectionalPreviewSync {
 
     await MarkEdit.showAlert({
       title: 'Relaunch MarkEdit to Finish Setup',
-      message: 'Built-In Sync Scroll is now turned off.\n\nQuit and reopen MarkEdit so Bidirectional Preview Sync can take over scrolling.',
+      message: 'Built-In Scroll Sync is now turned off.\n\nQuit and reopen MarkEdit so Bidirectional Preview Sync can take over scrolling.',
       buttons: ['OK'],
     });
   }

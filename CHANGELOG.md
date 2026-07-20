@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.0.2 (2026-07-20)
+
+### Improved
+
+- Clarified the first-run setup alert so it's easier to understand how to disable MarkEdit-preview's built-in sync.
+
 ## 1.0.1 (2026-07-19)
 
 ### Fixed

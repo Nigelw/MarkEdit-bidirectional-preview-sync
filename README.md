@@ -1,14 +1,14 @@
 # MarkEdit Bidirectional Preview Sync
 
-Best-effort bidirectional preview synchronization for MarkEdit and [MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview).
+Keeps [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)’s editor and preview panes synchronized as you switch and scroll between them.
 
-**[Download the latest release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest/download/markedit-bidirectional-preview-sync.js)** then see [Install](#install) below.
+[MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview) can keep the preview aligned as you edit, but it doesn't move the editor when you scroll the preview. This extension keeps both panes aligned, so you can move naturally between reading the rendered document and editing the source.
 
-MarkEdit-preview can keep the preview aligned as you edit, but it does not move the editor when you scroll the preview. This extension keeps both panes aligned, so you can move naturally between reading the rendered document and editing the source.
-
-This is particularly useful when using preview mode to proofread. When you spot an error, switching back to the editor takes you to the text you were just reading instead of making you hunt for it again. The preview-to-editor mapping doesn't need to be perfect to remove friction from this workflow; it just needs to be good.
+This is particularly useful when proofreading in preview mode. When you spot an error, switching back to the editor takes you to the text you were just reading instead of making you hunt for it again. The preview-to-editor mapping doesn't need to be perfect to remove friction from this workflow; it just needs to be good. This extension easily clears that bar. It also plays nicely with my [Outline Sidebar](https://github.com/Nigelw/MarkEdit-outline-sidebar) extension.
 
 ![MarkEdit Bidirectional Preview Sync demo](assets/screenrecording2.gif)
+
+**[Download the latest release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest/download/markedit-bidirectional-preview-sync.js)** then see [Install](#install) below.
 
 ## Install
 

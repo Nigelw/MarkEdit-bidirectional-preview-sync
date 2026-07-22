@@ -36,7 +36,7 @@ Try selecting text inside a cell, across cell boundaries, and across multiple ro
 
 - [ ] Unchecked task item with **bold task text**
 - [x] Checked task item with `inline_task_code`
-- [ ] Task item with a [task link](https://example.com/task-link)
+- [x] Task item with a [task link](https://example.com/task-link)
 
 Try selecting only the task text, then selecting from the checkbox region into the text.
 

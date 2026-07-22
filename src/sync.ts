@@ -46,6 +46,7 @@ export class BidirectionalPreviewSync {
   private previewFrame: number | undefined;
   private selectionFrame: number | undefined;
   private selectionMirrorTriggeredByPreview = false;
+  private previewPointerDown = false;
   private attachFrame: number | undefined;
   private attachedPreviewPane: HTMLElement | undefined;
   private waitingForPreviewLogged = false;
@@ -238,6 +239,7 @@ export class BidirectionalPreviewSync {
       this.selectionFrame = undefined;
     }
     this.selectionMirrorTriggeredByPreview = false;
+    this.previewPointerDown = false;
     this.mirroredPreviewSelectionStart = undefined;
   }
 
@@ -267,11 +269,19 @@ export class BidirectionalPreviewSync {
 
     const documentHandler = () => this.schedulePreviewSelectionMirror(previewPane);
     const previewHandler = () => this.schedulePreviewSelectionMirror(previewPane, true);
+    const pointerDownHandler = () => { this.previewPointerDown = true; };
+    const pointerUpHandler = () => { this.previewPointerDown = false; };
     document.addEventListener('selectionchange', documentHandler);
+    previewPane.addEventListener('mousedown', pointerDownHandler);
+    // Release is tracked on the document so a drag that ends outside the preview
+    // still clears the flag.
+    document.addEventListener('mouseup', pointerUpHandler);
     previewPane.addEventListener('mouseup', previewHandler);
     previewPane.addEventListener('keyup', previewHandler);
     this.selectionDisposables.push(() => {
       document.removeEventListener('selectionchange', documentHandler);
+      previewPane.removeEventListener('mousedown', pointerDownHandler);
+      document.removeEventListener('mouseup', pointerUpHandler);
       previewPane.removeEventListener('mouseup', previewHandler);
       previewPane.removeEventListener('keyup', previewHandler);
     });
@@ -357,6 +367,14 @@ export class BidirectionalPreviewSync {
     }
 
     if (selection.isCollapsed || selection.rangeCount === 0) {
+      // While a preview drag is in progress the selection momentarily collapses as
+      // the caret crosses word and inline-span boundaries (e.g. passing the start of
+      // a double-clicked word). Collapsing the mirror on those transient states makes
+      // the editor selection flicker away entirely, so keep the last mirrored
+      // selection until the pointer is released.
+      if (this.previewPointerDown && !triggeredByPreview) {
+        return;
+      }
       if (
         triggeredByPreview ||
         (selection.anchorNode !== null && previewPane.contains(selection.anchorNode))

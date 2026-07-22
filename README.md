@@ -8,7 +8,7 @@ This is particularly useful when using preview mode to proofread. When you spot 
 
 HTML can’t be mapped to Markdown perfectly, so there may be instances where switching from preview to editor doesn’t scroll to the exact correct location. Luckily this functionality doesn't need to be perfect to remove friction from your workflow; it just needs to be good. This extension easily clears that bar. It also works nicely with my [Outline Sidebar](https://github.com/Nigelw/MarkEdit-outline-sidebar) extension.
 
-![MarkEdit Bidirectional Preview Sync demo](assets/screenrecording2.gif)
+![MarkEdit Bidirectional Preview Sync demo](assets/screen_recording.gif)
 
 **[Download the latest release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest/download/markedit-bidirectional-preview-sync.js)** then see [Install](#install) below.
 

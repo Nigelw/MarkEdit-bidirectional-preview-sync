@@ -11,6 +11,8 @@
 ### Fixed
 
 - Preserved whitespace selected in the preview when mirroring to the editor. Rendered offsets now map directly to source characters instead of a whitespace-collapsed stream, so paragraph-edge whitespace and the leading space before a styled span are no longer trimmed from the mirrored source selection.
+- Excluded inline formatting markers from mirrored selections at span boundaries. Selecting rendered bold, italic, bold italic, inline code, or strikethrough now maps to the content only, dropping the surrounding `**`, `__`, `*`, `_`, `***`, `` ` ``, and `~~` wrappers. Each selection endpoint now resolves to the leading source position when it is the start of the selection and the trailing position when it is the end, so closing markers no longer leak in.
+- Treated inline code contents literally so characters like `_` and `*` inside `` `inline_code` `` are preserved instead of being mistaken for emphasis markers.
 
 ## 1.0.2 (2026-07-20)
 

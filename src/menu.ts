@@ -1,7 +1,7 @@
 import { MarkEdit } from 'markedit-api';
 import type { MenuItem } from 'markedit-api';
 
-import { EXTENSION_NAME, REPO_URL } from './constants';
+import { EXTENSION_NAME, RELEASE_NOTES_URL, REPO_URL } from './constants';
 import { loadSettings, SETTINGS_NAMESPACE, settingsObject } from './settings';
 import type { SyncTiming } from './settings';
 import type { BidirectionalPreviewSync } from './sync';
@@ -24,20 +24,12 @@ export function installMenu(controller: BidirectionalPreviewSync): void {
       },
       { separator: true },
       {
-        title: 'About',
-        action: () => {
-          void MarkEdit.showAlert({
-            title: 'Bidirectional Preview Sync',
-            message:
-              'Best-effort editor-to-preview and preview-to-editor synchronization. ' +
-              'Disable MarkEdit-preview syncScroll so this extension can own both directions.',
-            buttons: ['OK'],
-          });
-        },
-      },
-      {
         title: 'Visit GitHub Project',
         action: () => openURL(REPO_URL),
+      },
+      {
+        title: 'View Release Notes',
+        action: () => openURL(RELEASE_NOTES_URL),
       },
       {
         title: 'Check for Updates...',

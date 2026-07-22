@@ -19,6 +19,9 @@ export const GITHUB_REPO = 'Nigelw/MarkEdit-bidirectional-preview-sync';
 /** Human-facing GitHub project page, linked from the Extensions menu. */
 export const REPO_URL = `https://github.com/${GITHUB_REPO}`;
 
+/** Human-facing release notes document, linked from the Extensions menu. */
+export const RELEASE_NOTES_URL = `${REPO_URL}/blob/main/CHANGELOG.md`;
+
 /** GitHub API endpoint returning the metadata of the latest published release. */
 export const LATEST_RELEASE_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 

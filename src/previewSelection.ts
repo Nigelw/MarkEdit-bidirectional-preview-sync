@@ -20,12 +20,6 @@ type PlainChar = {
   sourceEndPos: number;
 };
 
-type Normalized = {
-  text: string;
-  sourceStarts: number[];
-  sourceEnds: number[];
-};
-
 export function previewSelectionToEditorSelection(
   selection: Selection,
   previewPane: HTMLElement,
@@ -168,15 +162,13 @@ function sourcePosForEndpoint(
 
   const source = doc.sliceString(sourceRange.from, sourceRange.to);
   const plain = markdownPlainChars(source, sourceRange.from);
-  const normalizedSource = normalizePlainChars(plain);
-  const normalizedBefore = normalizeText(domText.slice(0, renderedOffset)).length;
-  const normalizedFull = normalizeText(domText).length;
-
-  if (normalizedSource.sourceStarts.length === 0) {
+  if (plain.length === 0) {
     return side === 'anchor' ? sourceRange.from : sourceRange.to;
   }
 
-  return sourcePositionForRenderedOffset(normalizedBefore, normalizedFull, normalizedSource);
+  const map = renderedToSourceMap(domText, plain, sourceRange);
+  const index = clamp(renderedOffset, 0, domText.length);
+  return map[index];
 }
 
 function sourceRangeForBlock(block: BlockEntry, doc: DocumentText): { from: number; to: number } | undefined {
@@ -204,65 +196,49 @@ function renderedOffsetInBlock(block: HTMLElement, node: Node, offset: number): 
   }
 }
 
-function sourcePositionForRenderedOffset(
-  renderedOffset: number,
-  renderedLength: number,
-  source: Normalized,
-): number {
-  if (renderedOffset <= 0) {
-    return source.sourceStarts[0];
-  }
+// Aligns the block's rendered text against the marker-stripped source characters
+// and returns, for every rendered offset (0..rendered.length inclusive), the source
+// position it maps to. Unlike a normalized/collapsed comparison, this preserves the
+// exact whitespace a user selects in the preview: a selected space maps to the source
+// space, paragraph-edge whitespace maps to the matching source characters, and the
+// leading space before a styled span is kept instead of being trimmed to the span.
+function renderedToSourceMap(rendered: string, plain: readonly PlainChar[], sourceRange: { from: number; to: number }): number[] {
+  const starts: number[] = new Array(rendered.length + 1);
+  const endPos = plain[plain.length - 1]?.sourceEndPos ?? sourceRange.to;
+  let p = 0;
 
-  if (renderedOffset >= renderedLength) {
-    return source.sourceEnds[source.sourceEnds.length - 1];
-  }
-
-  const index = sourceIndexForRenderedOffset(renderedOffset, renderedLength, source);
-  return source.sourceStarts[index];
-}
-
-function sourceIndexForRenderedOffset(renderedOffset: number, renderedLength: number, source: Normalized): number {
-  if (source.text.length === renderedLength) {
-    return clamp(renderedOffset, 0, source.sourceStarts.length - 1);
-  }
-
-  if (renderedLength <= 0 || source.text.length <= 1) {
-    return renderedOffset <= 0 ? 0 : source.sourceStarts.length - 1;
-  }
-
-  const ratio = clamp(renderedOffset / renderedLength, 0, 1);
-  return clamp(Math.round(ratio * (source.sourceStarts.length - 1)), 0, source.sourceStarts.length - 1);
-}
-
-function normalizeText(text: string): string {
-  return normalizePlainChars(Array.from(text, (char, index) => ({ char, sourcePos: index, sourceEndPos: index + char.length }))).text;
-}
-
-function normalizePlainChars(chars: readonly PlainChar[]): Normalized {
-  let text = '';
-  const sourceStarts: number[] = [];
-  const sourceEnds: number[] = [];
-  let pendingSpace: PlainChar | undefined;
-
-  for (const item of chars) {
-    if (/\s/.test(item.char)) {
-      pendingSpace = item;
-      continue;
+  for (let r = 0; r <= rendered.length; r += 1) {
+    // A rendered non-space character never corresponds to leading source whitespace,
+    // so skip any pending source whitespace before recording its position. Rendered
+    // whitespace, by contrast, should map onto the first source whitespace character.
+    if (r < rendered.length && !isSpace(rendered[r])) {
+      while (p < plain.length && isSpace(plain[p].char)) {
+        p += 1;
+      }
     }
 
-    if (pendingSpace !== undefined && text.length > 0) {
-      text += ' ';
-      sourceStarts.push(pendingSpace.sourcePos);
-      sourceEnds.push(pendingSpace.sourceEndPos);
+    starts[r] = p < plain.length ? plain[p].sourcePos : endPos;
+    if (r === rendered.length) {
+      break;
     }
 
-    text += item.char;
-    sourceStarts.push(item.sourcePos);
-    sourceEnds.push(item.sourceEndPos);
-    pendingSpace = undefined;
+    if (isSpace(rendered[r])) {
+      // Collapse a run of source whitespace onto this single rendered whitespace.
+      while (p < plain.length && isSpace(plain[p].char)) {
+        p += 1;
+      }
+    } else if (p < plain.length) {
+      // Advance past the matched source character. When the characters disagree
+      // (e.g. HTML entities or leftover markers) fall back to a one-to-one advance.
+      p += 1;
+    }
   }
 
-  return { text, sourceStarts, sourceEnds };
+  return starts;
+}
+
+function isSpace(char: string): boolean {
+  return /\s/.test(char);
 }
 
 function markdownPlainChars(source: string, basePos: number): PlainChar[] {

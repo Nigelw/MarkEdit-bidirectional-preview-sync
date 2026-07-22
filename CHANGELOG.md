@@ -8,6 +8,10 @@
 - Added a hot-reloaded `mirrorPreviewSelection` setting and menu toggle.
 - Collapsing a mirrored preview text selection now collapses the editor selection to the start of the mirrored source selection.
 
+### Fixed
+
+- Preserved whitespace selected in the preview when mirroring to the editor. Rendered offsets now map directly to source characters instead of a whitespace-collapsed stream, so paragraph-edge whitespace and the leading space before a styled span are no longer trimmed from the mirrored source selection.
+
 ## 1.0.2 (2026-07-20)
 
 ### Improved

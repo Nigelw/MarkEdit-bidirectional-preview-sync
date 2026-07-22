@@ -35,7 +35,7 @@ A release is only usable by the updater if all of these agree:
    - Gather commits since the previous release with `git describe --tags --abbrev=0`, then
      `git log --no-merges <prev-tag>..HEAD --pretty='%s%n%b'`. If there is no previous tag, use the
      whole history.
-   - Move the `CHANGELOG.md` `Unreleased` notes into a new release section for the chosen version:
+   - Add a new `CHANGELOG.md` section for the chosen version directly below `# Changelog`:
      ```markdown
      ## <version> (YYYY-MM-DD)
 
@@ -43,8 +43,8 @@ A release is only usable by the updater if all of these agree:
 
      - ...
      ```
-   - If `Unreleased` is empty, draft the section from the commits. Author it as short user-facing
-     Markdown, applying these rules:
+   - Draft the section from the commits. Author it as short user-facing Markdown, applying these
+     rules:
      - Draft release note entries under three Markdown `###` headings in this order: `New` for
        major, headline features; `Improved` for quality-of-life updates and polish; `Fixed` for bug
        fixes. Omit a bucket if it has no entries.
@@ -54,7 +54,6 @@ A release is only usable by the updater if all of these agree:
        bumps, and doc edits.
      - Use one succinct line per entry, with no jargon, file names, symbols, or implementation
        details.
-   - Leave a fresh empty `## Unreleased` section above the new release section.
    - Let the user review and edit before continuing. Show the new `CHANGELOG.md` section, offer to
      open the file with `${EDITOR:-${VISUAL:-open}} CHANGELOG.md`, or take edits in conversation.
      Get explicit confirmation before continuing.

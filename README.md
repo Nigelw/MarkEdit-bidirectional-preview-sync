@@ -1,6 +1,6 @@
 # MarkEdit Bidirectional Preview Sync
 
-Keeps [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)’s editor and preview panes synchronized as you switch and scroll between them.
+Keeps [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)’s editor and preview modes synchronized as you switch between them and scroll.
 
 [MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview) can keep the preview aligned as you edit but it’s one-way only; when you scroll the preview it doesn't move the editor. This extension keeps both views aligned, so you can move quickly between reading the rendered document and editing the source.
 

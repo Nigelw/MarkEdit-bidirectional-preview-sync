@@ -292,7 +292,11 @@ function renderedToSourceMap(rendered: string, plain: readonly PlainChar[], sour
 }
 
 function isSpace(char: string): boolean {
-  return /\s/.test(char);
+  // A non-breaking space (rendered from `&nbsp;`/`&#160;`) is a distinct visible
+  // character, not collapsible layout whitespace. Excluding it keeps it aligned
+  // one-to-one with its source entity instead of being merged into an adjacent
+  // run of ordinary spaces by the whitespace-collapsing logic below.
+  return char !== '\u00A0' && /\s/.test(char);
 }
 
 function markdownPlainChars(source: string, basePos: number): PlainChar[] {
@@ -365,6 +369,20 @@ function markdownPlainChars(source: string, basePos: number): PlainChar[] {
       continue;
     }
 
+    // HTML entities render as the single character they encode, so the whole
+    // entity source span (`&amp;`, `&#169;`, `&#x2014;`, …) collapses to one
+    // decoded output character — mirroring how a code span or marker run maps a
+    // range of source onto its rendered content. A bare `&` that does not start a
+    // recognized reference falls through and is treated as a literal character.
+    if (char === '&') {
+      const entity = decodeEntityAt(source, i);
+      if (entity !== undefined) {
+        chars.push({ char: entity.char, sourcePos: basePos + i, sourceEndPos: basePos + i + entity.length });
+        i += entity.length;
+        continue;
+      }
+    }
+
     if (char === '[' || char === ']') {
       i += 1;
       continue;
@@ -388,8 +406,77 @@ function markdownPlainChars(source: string, basePos: number): PlainChar[] {
 }
 
 function linePrefixLength(source: string, index: number): number {
-  const match = /^(?:[ \t]{0,3}(?:#{1,6}[ \t]+|>[ \t]?|[-+*][ \t]+|\d+[.)][ \t]+|\[[ xX]\][ \t]+))/.exec(source.slice(index));
+  // The trailing `\[\^…\]:` alternative strips a footnote definition label
+  // (`[^name]: `) that opens a footnote body line. The rendered footnote body
+  // omits the label, so leaving it in would shift every body character — and the
+  // selected content — by the label's length.
+  const match = /^(?:[ \t]{0,3}(?:#{1,6}[ \t]+|>[ \t]?|[-+*][ \t]+|\d+[.)][ \t]+|\[[ xX]\][ \t]+|\[\^[^\]\n]+\]:[ \t]+))/.exec(source.slice(index));
   return match?.[0].length ?? 0;
+}
+
+// Named HTML entities exercised by the preview. This is intentionally a small,
+// targeted table rather than the full HTML5 set: numeric references cover the
+// general case, and these names cover the characters the renderer actually emits.
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: '\'',
+  nbsp: '\u00A0',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  mdash: '—',
+  ndash: '–',
+  hellip: '…',
+};
+
+// Decodes an HTML entity reference starting at `index` (where `source[index]` is
+// `&`), returning the single decoded character and the length of the source span
+// it consumes (including the leading `&` and trailing `;`). Returns undefined for
+// a bare ampersand or any unrecognized/malformed reference so the caller can fall
+// back to literal handling.
+function decodeEntityAt(source: string, index: number): { char: string; length: number } | undefined {
+  const semicolon = source.indexOf(';', index + 1);
+  // Cap the search so a stray `&` in prose cannot latch onto a distant `;`.
+  if (semicolon === -1 || semicolon - index > 32) {
+    return undefined;
+  }
+
+  const body = source.slice(index + 1, semicolon);
+  if (body.length === 0) {
+    return undefined;
+  }
+
+  const length = semicolon - index + 1;
+  if (body[0] === '#') {
+    let codePoint: number;
+    if (body[1] === 'x' || body[1] === 'X') {
+      const hex = body.slice(2);
+      if (!/^[0-9a-fA-F]+$/.test(hex)) {
+        return undefined;
+      }
+      codePoint = parseInt(hex, 16);
+    } else {
+      const dec = body.slice(1);
+      if (!/^[0-9]+$/.test(dec)) {
+        return undefined;
+      }
+      codePoint = parseInt(dec, 10);
+    }
+    if (!Number.isFinite(codePoint) || codePoint <= 0 || codePoint > 0x10FFFF) {
+      return undefined;
+    }
+    try {
+      return { char: String.fromCodePoint(codePoint), length };
+    } catch {
+      return undefined;
+    }
+  }
+
+  const named = NAMED_ENTITIES[body];
+  return named === undefined ? undefined : { char: named, length };
 }
 
 function isFormattingMarker(char: string): boolean {

@@ -45,7 +45,6 @@ export class BidirectionalPreviewSync {
   private editorFrame: number | undefined;
   private previewFrame: number | undefined;
   private selectionFrame: number | undefined;
-  private selectionMirrorTriggeredByPreview = false;
   private previewPointerDown = false;
   private attachFrame: number | undefined;
   private attachedPreviewPane: HTMLElement | undefined;
@@ -238,7 +237,6 @@ export class BidirectionalPreviewSync {
       cancelAnimationFrame(this.selectionFrame);
       this.selectionFrame = undefined;
     }
-    this.selectionMirrorTriggeredByPreview = false;
     this.previewPointerDown = false;
     this.mirroredPreviewSelectionStart = undefined;
   }
@@ -267,23 +265,34 @@ export class BidirectionalPreviewSync {
       return;
     }
 
-    const documentHandler = () => this.schedulePreviewSelectionMirror(previewPane);
-    const previewHandler = () => this.schedulePreviewSelectionMirror(previewPane, true);
+    // The mirror only runs once a selection gesture has settled, never during an
+    // in-progress drag. Reasoning about a single finished `window.getSelection()`
+    // state avoids the transient/intermediate selection states WebKit produces
+    // mid-drag (collapses as the caret crosses word/span boundaries, anchor
+    // placement that does not yet reflect the gesture's intent).
+    const finalizeMirror = () => this.schedulePreviewSelectionMirror(previewPane);
     const pointerDownHandler = () => { this.previewPointerDown = true; };
-    const pointerUpHandler = () => { this.previewPointerDown = false; };
-    document.addEventListener('selectionchange', documentHandler);
+    // Mouse release is tracked on the document so a drag that starts in the preview
+    // but ends outside it (for example dragging past the pane's edge before
+    // releasing) still finalizes the mirror.
+    const pointerUpHandler = () => {
+      if (!this.previewPointerDown) {
+        return;
+      }
+      this.previewPointerDown = false;
+      finalizeMirror();
+    };
+    // Keyup is tracked on the document, not previewPane: clicking into rendered,
+    // non-editable preview content does not move DOM focus into previewPane, so a
+    // keyup listener scoped to previewPane would never see the keyup events that
+    // fire while extending a selection with the keyboard (e.g. Shift+Arrow).
     previewPane.addEventListener('mousedown', pointerDownHandler);
-    // Release is tracked on the document so a drag that ends outside the preview
-    // still clears the flag.
     document.addEventListener('mouseup', pointerUpHandler);
-    previewPane.addEventListener('mouseup', previewHandler);
-    previewPane.addEventListener('keyup', previewHandler);
+    document.addEventListener('keyup', finalizeMirror);
     this.selectionDisposables.push(() => {
-      document.removeEventListener('selectionchange', documentHandler);
       previewPane.removeEventListener('mousedown', pointerDownHandler);
       document.removeEventListener('mouseup', pointerUpHandler);
-      previewPane.removeEventListener('mouseup', previewHandler);
-      previewPane.removeEventListener('keyup', previewHandler);
+      document.removeEventListener('keyup', finalizeMirror);
     });
   }
 
@@ -342,43 +351,27 @@ export class BidirectionalPreviewSync {
     });
   }
 
-  private schedulePreviewSelectionMirror(previewPane: HTMLElement, triggeredByPreview = false): void {
-    this.selectionMirrorTriggeredByPreview ||= triggeredByPreview;
-
+  private schedulePreviewSelectionMirror(previewPane: HTMLElement): void {
     if (this.selectionFrame !== undefined) {
       cancelAnimationFrame(this.selectionFrame);
     }
 
     this.selectionFrame = requestAnimationFrame(() => {
       this.selectionFrame = undefined;
-      const fromPreview = this.selectionMirrorTriggeredByPreview;
-      this.selectionMirrorTriggeredByPreview = false;
-      this.mirrorPreviewSelectionToEditor(previewPane, fromPreview);
+      this.mirrorPreviewSelectionToEditor(previewPane);
     });
   }
 
-  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement, triggeredByPreview: boolean): void {
+  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement): void {
     const selection = window.getSelection();
-    if (selection === null) {
-      if (triggeredByPreview) {
-        this.collapseMirroredPreviewSelection();
-      }
-      return;
-    }
-
-    if (selection.isCollapsed || selection.rangeCount === 0) {
-      // While a preview drag is in progress the selection momentarily collapses as
-      // the caret crosses word and inline-span boundaries (e.g. passing the start of
-      // a double-clicked word). Collapsing the mirror on those transient states makes
-      // the editor selection flicker away entirely, so keep the last mirrored
-      // selection until the pointer is released.
-      if (this.previewPointerDown && !triggeredByPreview) {
-        return;
-      }
-      if (
-        triggeredByPreview ||
-        (selection.anchorNode !== null && previewPane.contains(selection.anchorNode))
-      ) {
+    if (selection === null || selection.isCollapsed || selection.rangeCount === 0) {
+      // Keyup is tracked on the whole document (see attachSelectionListeners), so
+      // this can fire for a keystroke anywhere, including while typing in the
+      // editor itself, where the selection is routinely collapsed. Only treat a
+      // collapsed selection as "the user cleared their preview selection" when it
+      // is actually anchored in the preview pane, otherwise every keystroke in the
+      // editor would snap its cursor back to the last mirrored position.
+      if (selection?.anchorNode !== null && selection?.anchorNode !== undefined && previewPane.contains(selection.anchorNode)) {
         this.collapseMirroredPreviewSelection();
       }
       return;

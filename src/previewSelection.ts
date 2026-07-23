@@ -54,22 +54,13 @@ export function previewSelectionToEditorSelection(
   // markers (e.g. the `**` after `bold text`) that sit between the last content
   // character and the next one.
   const anchorIsLower = compareEndpointInfo(anchorInfo, focusInfo) <= 0;
-  const lowerEndpoint = anchorIsLower ? anchor : focus;
-  const upperEndpoint = anchorIsLower ? focus : anchor;
   const lowerInfo = anchorIsLower ? anchorInfo : focusInfo;
   const upperInfo = anchorIsLower ? focusInfo : anchorInfo;
 
   const lowerPos = lowerInfo.leading;
-  // The upper boundary normally stops at the trailing (marker-excluded) position of
-  // the last selected character. But when that boundary sits exactly at the content
-  // start of an inline formatting span the user is selecting *into* (their selection
-  // is anchored inside the span, e.g. after double-clicking a word inside `**bold**`
-  // and dragging back past its start), the trailing position lands *before* the
-  // stripped opening markers. Combined with a lower boundary just before the span
-  // that produces a degenerate range covering only the whitespace between the words —
-  // the reported "selection collapses to a single space" bug. Extend the upper
-  // boundary to the span's content end so the mirrored selection includes the span.
-  const upperPos = upperBoundaryPos(lowerEndpoint, upperEndpoint, lowerInfo, upperInfo, doc);
+  // The upper boundary stops at the trailing (marker-excluded) position of the last
+  // selected character, so closing syntax markers are excluded from the range.
+  const upperPos = upperInfo.trailing;
   if (lowerPos === upperPos) {
     return undefined;
   }
@@ -81,55 +72,6 @@ export function previewSelectionToEditorSelection(
     selection: EditorSelection.create([editorRange]),
     range: editorRange,
   };
-}
-
-// Tags whose Markdown source wraps the rendered content in hidden syntax markers.
-const INLINE_FORMAT_TAGS = new Set(['STRONG', 'B', 'EM', 'I', 'DEL', 'S', 'CODE', 'MARK']);
-
-// Resolves the source position for the selection's upper (end) boundary. Usually
-// this is the endpoint's marker-excluded trailing position. The exception is when
-// the upper endpoint sits at the very content start of an inline formatting span and
-// the selection is entering that span from before it — see the caller for details.
-function upperBoundaryPos(
-  lowerEndpoint: Endpoint,
-  upperEndpoint: Endpoint,
-  lowerInfo: EndpointSourceInfo,
-  upperInfo: EndpointSourceInfo,
-  doc: DocumentText,
-): number {
-  const span = enclosingFormatElement(upperEndpoint.node, upperEndpoint.block.element);
-  if (span === undefined) {
-    return upperInfo.trailing;
-  }
-
-  // The upper endpoint must be at the span's content start (nothing of the span is
-  // before it), the lower boundary must be strictly before it (entering from the
-  // left), and the lower boundary must not itself be inside this span.
-  const spanStart = renderedOffsetInBlock(upperEndpoint.block.element, span, 0);
-  if (spanStart === undefined || spanStart !== upperInfo.order || lowerInfo.order >= upperInfo.order) {
-    return upperInfo.trailing;
-  }
-  if (enclosingFormatElement(lowerEndpoint.node, lowerEndpoint.block.element) === span) {
-    return upperInfo.trailing;
-  }
-
-  const spanEnd = endpointSourceInfo(
-    { block: upperEndpoint.block, node: span, offset: span.childNodes.length },
-    doc,
-  );
-  return spanEnd?.trailing ?? upperInfo.trailing;
-}
-
-// Nearest ancestor inline formatting element between `node` and its block, if any.
-function enclosingFormatElement(node: Node, block: HTMLElement): HTMLElement | undefined {
-  let current: Node | null = node.nodeType === Node.ELEMENT_NODE ? node : node.parentNode;
-  while (current !== null && current !== block) {
-    if (current instanceof HTMLElement && INLINE_FORMAT_TAGS.has(current.tagName)) {
-      return current;
-    }
-    current = current.parentNode;
-  }
-  return undefined;
 }
 
 function endpointFor(

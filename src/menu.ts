@@ -24,9 +24,14 @@ export function installMenu(controller: BidirectionalPreviewSync): void {
       },
       { separator: true },
       {
-        title: 'Mirror Preview Selection',
-        action: () => void setMirrorPreviewSelection(!controller.mirrorPreviewSelection(), controller),
-        state: () => ({ isSelected: controller.mirrorPreviewSelection() }),
+        title: 'Experimental Features',
+        children: [
+          {
+            title: 'Mirror Preview Selection',
+            action: () => void setMirrorPreviewSelection(!controller.mirrorPreviewSelection(), controller),
+            state: () => ({ isSelected: controller.mirrorPreviewSelection() }),
+          },
+        ],
       },
       { separator: true },
       {

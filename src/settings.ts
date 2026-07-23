@@ -20,7 +20,7 @@ export function loadSettings(): Settings {
 
   return {
     syncTiming,
-    mirrorPreviewSelection: booleanValue(root.mirrorPreviewSelection, true),
+    mirrorPreviewSelection: booleanValue(root.mirrorPreviewSelection, false),
     referenceRatio: numberValue(root.referenceRatio, 0, 0, 1),
     update: updateBehaviorValue(root.update, 'notify'),
   };

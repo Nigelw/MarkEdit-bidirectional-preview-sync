@@ -40,7 +40,7 @@ If you prefer to make the change manually, set MarkEdit-preview's `syncScroll` o
 
 Use *Extensions → Bidirectional Preview Sync → Sync After Scrolling Stops* or *Sync While Scrolling* to change `syncTiming` from the extension's menu without relaunching MarkEdit.
 
-Use *Extensions → Bidirectional Preview Sync → Mirror Preview Selection* to toggle whether selecting rendered text in the preview also selects the matching Markdown source in the editor. This setting is hot-reloaded immediately.
+Use *Extensions → Bidirectional Preview Sync → Experimental Features → Mirror Preview Selection* to toggle whether selecting rendered text in the preview also selects the matching Markdown source in the editor. This setting is hot-reloaded immediately.
 
 Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
 
@@ -48,7 +48,7 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
 {
     "extension.bidirectionalPreviewSync": {
       "syncTiming": "afterScroll",
-      "mirrorPreviewSelection": true,
+      "mirrorPreviewSelection": false,
       "referenceRatio": 0,
       "update": "notify"
   }
@@ -58,7 +58,7 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
 - `syncTiming`: controls when the paired view updates.
   - `"afterScroll”` (default) and waits for scrolling to settle.
   - `"whileScrolling"` updates the paired view continuously as you scroll.
-- `mirrorPreviewSelection`: mirrors preview text selections into the editor when set to `true` (default).
+- `mirrorPreviewSelection`: mirrors preview text selections into the editor when set to `true`. Off (`false`) by default while this experimental feature is refined; it's also available from the Extensions menu under *Experimental Features*.
   - Deselecting mirrored preview text collapses the editor selection to a caret at the start of the previous mirrored source selection.
   - Styled text selects the content text in the source and tries to exclude Markdown formatting markers such as `**`, `_`, backticks, heading markers, and link destinations.
   - Mapping is best-effort. Simple prose, headings, emphasis, inline code, and links usually work best. Tables, task lists, images, generated anchors, HTML blocks, footnotes, entities, deeply nested markup, or plugin-rendered content may select a nearby source span rather than the exact characters.

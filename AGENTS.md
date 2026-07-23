@@ -39,7 +39,7 @@ src/globals.d.ts       Ambient declaration for __EXTENSION_VERSION__
 
 ## Releases
 
-Releases are cut with the **`release` skill** (`.claude/skills/release/SKILL.md`). It bumps the version, updates `CHANGELOG.md`, rebuilds, commits, tags `vX.Y.Z`, pushes, and publishes a GitHub release with `dist/markedit-bidirectional-preview-sync.js` attached as an asset.
+Releases are cut with the **`release` skill** (`.agents/skills/release/SKILL.md`). It bumps the version, updates `CHANGELOG.md`, rebuilds, commits, tags `vX.Y.Z`, pushes, and publishes a GitHub release with `dist/markedit-bidirectional-preview-sync.js` attached as an asset.
 
 The updater downloads the release asset named `markedit-bidirectional-preview-sync.js` from the latest GitHub release. For a release to be installable, all of these must agree:
 

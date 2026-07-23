@@ -23,6 +23,12 @@
 - Kept the plain character stream aligned across an inline footnote reference. An inline `[^name]` reference renders as a short marker link (`[1]`) whose width is chosen by the renderer's footnote numbering, not derivable from the source label — previously the label text flowed through as literal content and desynced every character after it in the block. The block's rendered marker widths are now measured from its own DOM (`.footnote-ref` elements' `textContent` length) and passed into `markdownPlainChars`, which reserves exactly that many placeholder characters for each `[^name]` span. Sentence text following an inline footnote reference now mirrors to its exact source; selecting the marker itself remains a best-effort case since its rendered text does not resemble the source label.
 - Stripped GFM table structure when mirroring selections. `markdownPlainChars` now drops the `|` cell delimiters and cell padding and skips the entire header separator row (`| --- | :--- | ---: |`, which renders as a rule rather than text), scoped to blocks that actually look like a table so a literal `|` in ordinary prose stays literal. Because the whole `<table>` is a single mapped block, its rendered text is the row-major concatenation of every cell, which now aligns character-for-character with the stripped source. Selecting rendered text within a single table cell — plain, bold, inline code, or link cells, composing with the existing marker/code/link stripping — now mirrors to the exact cell content. A selection spanning two cells still contains the interior `|` between them, the same contiguous-range constraint as other cross-span selections.
 
+## 1.0.3 (2026-07-22)
+
+### Improved
+
+- Adds a menu item for opening the release notes on GitHub.
+
 ## 1.0.2 (2026-07-20)
 
 ### Improved

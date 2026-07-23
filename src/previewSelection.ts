@@ -301,6 +301,11 @@ function isSpace(char: string): boolean {
 
 function markdownPlainChars(source: string, basePos: number): PlainChar[] {
   const chars: PlainChar[] = [];
+  // A GFM table renders its cells with the pipe delimiters, cell padding, and the
+  // header separator line (`| --- | :--- | ---: |`) removed. Detecting the table
+  // once, up front, keeps pipe-stripping scoped to genuine table blocks so that a
+  // literal `|` in ordinary prose stays a literal character.
+  const tableMode = looksLikeTableSource(source);
   let lineStart = true;
   let i = 0;
 
@@ -309,6 +314,18 @@ function markdownPlainChars(source: string, basePos: number): PlainChar[] {
     const next = source[i + 1];
 
     if (lineStart) {
+      // The delimiter row renders as nothing (a horizontal rule under the header),
+      // so emit zero characters for it — leaving only its trailing newline — the
+      // same way `linePrefixLength` drops line-leading syntax that has no rendered
+      // text. Skipping it keeps the plain stream aligned with the rendered cells.
+      if (tableMode) {
+        const lineEnd = lineEndFrom(source, i);
+        if (isTableDelimiterRow(source.slice(i, lineEnd))) {
+          i = lineEnd;
+          continue;
+        }
+      }
+
       const skipped = linePrefixLength(source, i);
       if (skipped > 0) {
         i += skipped;
@@ -328,6 +345,16 @@ function markdownPlainChars(source: string, basePos: number): PlainChar[] {
     if (char === '\\' && next !== undefined) {
       chars.push({ char: next, sourcePos: basePos + i + 1, sourceEndPos: basePos + i + 2 });
       i += 2;
+      continue;
+    }
+
+    // Table cell delimiters carry no rendered text; the surrounding padding is
+    // ordinary whitespace and collapses onto the rendered gap between cells. An
+    // escaped `\|` never reaches here (the backslash branch above already emitted
+    // it as a literal), and a `|` inside an inline code span is consumed verbatim
+    // by the backtick branch below, so only structural delimiters are dropped.
+    if (tableMode && char === '|') {
+      i += 1;
       continue;
     }
 
@@ -412,6 +439,32 @@ function linePrefixLength(source: string, index: number): number {
   // selected content — by the label's length.
   const match = /^(?:[ \t]{0,3}(?:#{1,6}[ \t]+|>[ \t]?|[-+*][ \t]+|\d+[.)][ \t]+|\[[ xX]\][ \t]+|\[\^[^\]\n]+\]:[ \t]+))/.exec(source.slice(index));
   return match?.[0].length ?? 0;
+}
+
+function lineEndFrom(source: string, index: number): number {
+  const newline = source.indexOf('\n', index);
+  return newline === -1 ? source.length : newline;
+}
+
+// A GFM table delimiter row separates the header from the body and renders as a
+// rule, not text (`| --- | :--- | ---: |`). Each cell is only dashes with optional
+// alignment colons; a pipe must be present so a horizontal rule (`---`) or a plain
+// dashed line of prose is not mistaken for one.
+function isTableDelimiterRow(line: string): boolean {
+  return line.includes('|') && /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/.test(line);
+}
+
+// A block is treated as a table when a delimiter row follows a line that contains
+// a pipe (the header). Scoping pipe/delimiter stripping to blocks that actually
+// look like tables keeps a literal `|` in ordinary prose untouched.
+function looksLikeTableSource(source: string): boolean {
+  const lines = source.split('\n');
+  for (let i = 1; i < lines.length; i += 1) {
+    if (isTableDelimiterRow(lines[i]) && lines[i - 1].includes('|')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Named HTML entities exercised by the preview. This is intentionally a small,

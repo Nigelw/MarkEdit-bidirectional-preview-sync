@@ -8,6 +8,20 @@ export type SelectionMapping = {
   range: SelectionRange;
 };
 
+// A preview selection produced from an editor selection. `anchorNode`/`focusNode`
+// are concrete DOM `(Node, offset)` endpoints suitable for
+// `Selection.setBaseAndExtent`, with the drag direction (anchor = base, focus =
+// moving end) preserved from the editor selection. `scrollTarget` is the block
+// element containing the focus endpoint, so the caller can bring the mirrored
+// selection into view.
+export type PreviewSelectionMapping = {
+  anchorNode: Node;
+  anchorOffset: number;
+  focusNode: Node;
+  focusOffset: number;
+  scrollTarget?: HTMLElement;
+};
+
 type Endpoint = {
   block: BlockEntry;
   node: Node;
@@ -82,6 +96,181 @@ export function previewSelectionToEditorSelection(
     selection: EditorSelection.create([editorRange]),
     range: editorRange,
   };
+}
+
+// Reverse of `previewSelectionToEditorSelection`: maps an editor selection range
+// (source/document coordinates) onto a concrete preview DOM selection. For each
+// endpoint it locates the containing block, builds that block's rendered↔source
+// map, inverts the (monotonic) map to find the rendered offset for the source
+// position, then walks the block's text nodes to a `(Node, offset)` pair. The
+// lower boundary snaps forward past leading markers; the upper boundary snaps back
+// to exclude trailing markers — mirroring the leading/trailing split the forward
+// direction uses. Returns undefined when no block is found or the selection maps to
+// an empty rendered span (e.g. entirely inside non-rendered syntax), leaving the
+// preview selection untouched.
+export function editorSelectionToPreviewSelection(
+  range: SelectionRange,
+  previewPane: HTMLElement,
+  entries: readonly BlockEntry[],
+  doc: DocumentText,
+): PreviewSelectionMapping | undefined {
+  const fromPos = range.from;
+  const toPos = range.to;
+  if (fromPos === toPos) {
+    return undefined;
+  }
+
+  const lower = resolvePreviewPoint(fromPos, 'lower', previewPane, entries, doc);
+  const upper = resolvePreviewPoint(toPos, 'upper', previewPane, entries, doc);
+  if (lower === undefined || upper === undefined) {
+    return undefined;
+  }
+
+  // Nothing rendered between the two endpoints (they collapsed to the same DOM
+  // point inside one block) — there is no visible span to mirror.
+  if (lower.blockElement === upper.blockElement
+    && lower.node === upper.node
+    && lower.offset === upper.offset) {
+    return undefined;
+  }
+
+  // Preserve the editor's drag direction: when the head sits before the anchor the
+  // selection is backward, so the preview anchor (base) is the upper DOM point and
+  // the focus (moving end) is the lower one.
+  const backward = range.head < range.anchor;
+  const anchor = backward ? upper : lower;
+  const focus = backward ? lower : upper;
+  return {
+    anchorNode: anchor.node,
+    anchorOffset: anchor.offset,
+    focusNode: focus.node,
+    focusOffset: focus.offset,
+    scrollTarget: focus.blockElement,
+  };
+}
+
+type PreviewPoint = {
+  node: Node;
+  offset: number;
+  blockElement: HTMLElement;
+};
+
+function resolvePreviewPoint(
+  pos: number,
+  kind: 'lower' | 'upper',
+  previewPane: HTMLElement,
+  entries: readonly BlockEntry[],
+  doc: DocumentText,
+): PreviewPoint | undefined {
+  const line = doc.lineAt(pos).number - 1;
+  const block = blockForLine(line, entries);
+  if (block === undefined || !previewPane.contains(block.element)) {
+    return undefined;
+  }
+
+  const built = buildBlockMap(block, doc);
+  if (built === undefined) {
+    return undefined;
+  }
+
+  const len = built.domText.length;
+  const rendered = kind === 'lower'
+    ? invertToLowerRendered(built.map.starts, pos, len)
+    : invertToUpperRendered(built.map.ends, pos, len);
+  const point = domPointForRenderedOffset(block.element, clamp(rendered, 0, len));
+  if (point === undefined) {
+    return undefined;
+  }
+
+  return { node: point.node, offset: point.offset, blockElement: block.element };
+}
+
+// Finds the block whose source line range contains `line`; when `line` falls in a
+// gap between blocks (a blank line or block boundary), snaps to the nearest block.
+// Entries are kept sorted by `from`, but the ranges are small so a linear scan is
+// simpler than a binary search and matches the forward direction's use of `entries`.
+function blockForLine(line: number, entries: readonly BlockEntry[]): BlockEntry | undefined {
+  let nearest: BlockEntry | undefined;
+  let nearestDist = Infinity;
+  for (const entry of entries) {
+    if (line >= entry.from && line <= entry.to) {
+      return entry;
+    }
+    const dist = line < entry.from ? entry.from - line : line - entry.to;
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = entry;
+    }
+  }
+  return nearest;
+}
+
+// Smallest rendered offset whose source start position is >= `pos`. `starts` is
+// monotonic non-decreasing, so this is a binary search. Used for the lower
+// (start) boundary: it snaps forward onto the first rendered character at or after
+// the source position, skipping any leading syntax markers that have no rendered
+// character of their own.
+function invertToLowerRendered(starts: readonly number[], pos: number, len: number): number {
+  let low = 0;
+  let high = len;
+  let answer = len;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (starts[mid] >= pos) {
+      answer = mid;
+      high = mid - 1;
+    } else {
+      low = mid + 1;
+    }
+  }
+  return answer;
+}
+
+// Largest rendered offset whose source end position is <= `pos`. `ends` is
+// monotonic non-decreasing, so this is a binary search. Used for the upper (end)
+// boundary: it snaps back to just after the last rendered character that ends at or
+// before the source position, excluding any trailing syntax markers.
+function invertToUpperRendered(ends: readonly number[], pos: number, len: number): number {
+  let low = 0;
+  let high = len;
+  let answer = 0;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (ends[mid] <= pos) {
+      answer = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return answer;
+}
+
+// Direct inverse of `renderedOffsetInBlock`: walks the block's text nodes in
+// document order, summing `textContent` lengths, and returns the `(Node, offset)`
+// pair at the target rendered offset. `renderedOffsetInBlock` measures the same
+// text via `Range.toString().length`, so summing `textContent` here lands on the
+// matching position. Pseudo-element content (`::before`/`::after`) is a real node
+// to neither walk, so both stay consistent.
+function domPointForRenderedOffset(block: HTMLElement, target: number): { node: Node; offset: number } | undefined {
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  let consumed = 0;
+  let last: Node | undefined;
+  let node = walker.nextNode();
+  while (node !== null) {
+    const length = (node.textContent ?? '').length;
+    if (consumed + length >= target) {
+      return { node, offset: target - consumed };
+    }
+    consumed += length;
+    last = node;
+    node = walker.nextNode();
+  }
+
+  if (last !== undefined) {
+    return { node: last, offset: (last.textContent ?? '').length };
+  }
+  return undefined;
 }
 
 function endpointFor(
@@ -188,14 +377,43 @@ function endpointSourceInfo(endpoint: Endpoint, doc: DocumentText): EndpointSour
     return undefined;
   }
 
-  const domText = endpoint.block.element.textContent ?? '';
-  if (domText.length === 0) {
-    return { leading: sourceRange.from, trailing: sourceRange.to };
-  }
-
   const renderedOffset = renderedOffsetInBlock(endpoint.block.element, endpoint.node, endpoint.offset);
   if (renderedOffset === undefined) {
     return { leading: sourceRange.from, trailing: sourceRange.to };
+  }
+
+  const built = buildBlockMap(endpoint.block, doc);
+  if (built === undefined) {
+    return { leading: sourceRange.from, trailing: sourceRange.to };
+  }
+
+  const index = clamp(renderedOffset, 0, built.domText.length);
+  return { leading: built.map.starts[index], trailing: built.map.ends[index] };
+}
+
+type BlockMap = {
+  map: { starts: number[]; ends: number[] };
+  domText: string;
+  sourceRange: { from: number; to: number };
+};
+
+// Builds the rendered↔source offset map for a single block: source slice →
+// marker-stripped `PlainChar[]` → `renderedToSourceMap`. Factored out so both the
+// preview→editor endpoint lookup (`endpointSourceInfo`) and the editor→preview
+// reverse mapping (`editorSelectionToPreviewSelection`) share exactly one
+// implementation of "build the map for this block". Returns undefined when the
+// block has no rendered text or produces no plain characters, in which case the
+// callers fall back to block-boundary source positions (forward) or skip the
+// block (reverse).
+function buildBlockMap(block: BlockEntry, doc: DocumentText): BlockMap | undefined {
+  const sourceRange = sourceRangeForBlock(block, doc);
+  if (sourceRange === undefined) {
+    return undefined;
+  }
+
+  const domText = block.element.textContent ?? '';
+  if (domText.length === 0) {
+    return undefined;
   }
 
   const source = doc.sliceString(sourceRange.from, sourceRange.to);
@@ -204,15 +422,14 @@ function endpointSourceInfo(endpoint: Endpoint, doc: DocumentText): EndpointSour
   // `[^name]`. Measure each rendered marker from the block's own DOM so the plain
   // stream can reserve exactly as many characters as the marker occupies, keeping
   // everything after the marker aligned. See markdownPlainChars for how they're used.
-  const footnoteWidths = footnoteMarkerWidths(endpoint.block.element);
+  const footnoteWidths = footnoteMarkerWidths(block.element);
   const plain = markdownPlainChars(source, sourceRange.from, footnoteWidths);
   if (plain.length === 0) {
-    return { leading: sourceRange.from, trailing: sourceRange.to };
+    return undefined;
   }
 
   const map = renderedToSourceMap(domText, plain, sourceRange);
-  const index = clamp(renderedOffset, 0, domText.length);
-  return { leading: map.starts[index], trailing: map.ends[index] };
+  return { map, domText, sourceRange };
 }
 
 function sourceRangeForBlock(block: BlockEntry, doc: DocumentText): { from: number; to: number } | undefined {

@@ -199,7 +199,13 @@ function endpointSourceInfo(endpoint: Endpoint, doc: DocumentText): EndpointSour
   }
 
   const source = doc.sliceString(sourceRange.from, sourceRange.to);
-  const plain = markdownPlainChars(source, sourceRange.from);
+  // The rendered width of an inline footnote marker (`[1]`, `[10]`, …) is chosen
+  // by the renderer's footnote numbering, not derivable from the source label
+  // `[^name]`. Measure each rendered marker from the block's own DOM so the plain
+  // stream can reserve exactly as many characters as the marker occupies, keeping
+  // everything after the marker aligned. See markdownPlainChars for how they're used.
+  const footnoteWidths = footnoteMarkerWidths(endpoint.block.element);
+  const plain = markdownPlainChars(source, sourceRange.from, footnoteWidths);
   if (plain.length === 0) {
     return { leading: sourceRange.from, trailing: sourceRange.to };
   }
@@ -232,6 +238,22 @@ function renderedOffsetInBlock(block: HTMLElement, node: Node, offset: number): 
   } finally {
     range.detach();
   }
+}
+
+// Rendered character widths of the block's inline footnote markers, in document
+// order. markdown-it-footnote emits `<sup class="footnote-ref"><a …>[1]</a></sup>`,
+// so the marker's rendered text (`[1]`, `[10]`, …) is a real substring of the
+// block's `textContent`. Its width comes from the renderer's footnote numbering,
+// not from the source label `[^name]`, so it cannot be inferred from source alone;
+// reading it here lets the plain stream reserve the matching number of placeholder
+// characters per marker, keeping subsequent content aligned. The Nth width pairs
+// with the Nth `[^name]` occurrence in the block's source.
+function footnoteMarkerWidths(element: HTMLElement): number[] {
+  const widths: number[] = [];
+  element.querySelectorAll('.footnote-ref').forEach(ref => {
+    widths.push((ref.textContent ?? '').length);
+  });
+  return widths;
 }
 
 // Aligns the block's rendered text against the marker-stripped source characters
@@ -299,8 +321,11 @@ function isSpace(char: string): boolean {
   return char !== '\u00A0' && /\s/.test(char);
 }
 
-function markdownPlainChars(source: string, basePos: number): PlainChar[] {
+function markdownPlainChars(source: string, basePos: number, footnoteWidths: readonly number[] = []): PlainChar[] {
   const chars: PlainChar[] = [];
+  // Consumes footnote-marker widths (from the block's DOM) in document order, one
+  // per inline `[^name]` reference encountered below.
+  let footnoteIndex = 0;
   // A GFM table renders its cells with the pipe delimiters, cell padding, and the
   // header separator line (`| --- | :--- | ---: |`) removed. Detecting the table
   // once, up front, keeps pipe-stripping scoped to genuine table blocks so that a
@@ -410,6 +435,30 @@ function markdownPlainChars(source: string, basePos: number): PlainChar[] {
       }
     }
 
+    // An inline footnote reference (`[^name]`) renders as a short marker link
+    // (`[1]`) whose width is set by the renderer, not by the label. Reserve exactly
+    // that many placeholder characters — mapped onto the whole `[^name]` source span
+    // — so the marker stays count-accurate and every character after it in the block
+    // remains aligned. Selecting the marker itself lands on the label span (an
+    // accepted limitation: the rendered `[1]` does not resemble `[^name]`), but the
+    // reserved count is what keeps the following text correct. When no matching DOM
+    // marker width is available (e.g. an undefined reference that renders as literal
+    // `[^name]` text), fall through to the generic bracket handling below.
+    if (char === '[' && next === '^') {
+      const refEnd = footnoteRefEnd(source, i);
+      if (refEnd !== -1 && footnoteIndex < footnoteWidths.length) {
+        const width = footnoteWidths[footnoteIndex];
+        footnoteIndex += 1;
+        for (let k = 0; k < width; k += 1) {
+          // U+FFFC (object replacement) is a non-space placeholder so the
+          // whitespace-collapsing logic treats it as content, not layout space.
+          chars.push({ char: '￼', sourcePos: basePos + i, sourceEndPos: basePos + refEnd });
+        }
+        i = refEnd;
+        continue;
+      }
+    }
+
     if (char === '[' || char === ']') {
       i += 1;
       continue;
@@ -439,6 +488,28 @@ function linePrefixLength(source: string, index: number): number {
   // selected content — by the label's length.
   const match = /^(?:[ \t]{0,3}(?:#{1,6}[ \t]+|>[ \t]?|[-+*][ \t]+|\d+[.)][ \t]+|\[[ xX]\][ \t]+|\[\^[^\]\n]+\]:[ \t]+))/.exec(source.slice(index));
   return match?.[0].length ?? 0;
+}
+
+// Given `[` at `index` with `^` following, returns the source offset just past the
+// closing `]` of an inline footnote reference (`[^name]`), or -1 when it is not a
+// well-formed reference. The label must be non-empty and contain no `]`, `[`, or
+// newline — matching what the renderer accepts as a footnote reference.
+function footnoteRefEnd(source: string, index: number): number {
+  let j = index + 2;
+  if (source[j] === ']') {
+    return -1;
+  }
+  while (j < source.length) {
+    const c = source[j];
+    if (c === ']') {
+      return j + 1;
+    }
+    if (c === '\n' || c === '[') {
+      return -1;
+    }
+    j += 1;
+  }
+  return -1;
 }
 
 function lineEndFrom(source: string, index: number): number {

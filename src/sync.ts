@@ -270,7 +270,14 @@ export class BidirectionalPreviewSync {
     // state avoids the transient/intermediate selection states WebKit produces
     // mid-drag (collapses as the caret crosses word/span boundaries, anchor
     // placement that does not yet reflect the gesture's intent).
-    const finalizeMirror = () => this.schedulePreviewSelectionMirror(previewPane);
+    // `fromPreviewPointer` records whether the settle came from a mouse gesture that
+    // began inside the preview. That distinction matters when the resulting
+    // selection is empty: a plain click inside the preview clears the native
+    // selection to nothing (no anchor node to test), yet it should still collapse
+    // the mirrored editor selection — whereas a document-wide keyup during ordinary
+    // editor typing must leave the editor cursor alone.
+    const finalizeMirror = (fromPreviewPointer: boolean) =>
+      this.schedulePreviewSelectionMirror(previewPane, fromPreviewPointer);
     const pointerDownHandler = () => { this.previewPointerDown = true; };
     // Mouse release is tracked on the document so a drag that starts in the preview
     // but ends outside it (for example dragging past the pane's edge before
@@ -280,19 +287,20 @@ export class BidirectionalPreviewSync {
         return;
       }
       this.previewPointerDown = false;
-      finalizeMirror();
+      finalizeMirror(true);
     };
     // Keyup is tracked on the document, not previewPane: clicking into rendered,
     // non-editable preview content does not move DOM focus into previewPane, so a
     // keyup listener scoped to previewPane would never see the keyup events that
     // fire while extending a selection with the keyboard (e.g. Shift+Arrow).
+    const keyUpHandler = () => finalizeMirror(false);
     previewPane.addEventListener('mousedown', pointerDownHandler);
     document.addEventListener('mouseup', pointerUpHandler);
-    document.addEventListener('keyup', finalizeMirror);
+    document.addEventListener('keyup', keyUpHandler);
     this.selectionDisposables.push(() => {
       previewPane.removeEventListener('mousedown', pointerDownHandler);
       document.removeEventListener('mouseup', pointerUpHandler);
-      document.removeEventListener('keyup', finalizeMirror);
+      document.removeEventListener('keyup', keyUpHandler);
     });
   }
 
@@ -351,27 +359,42 @@ export class BidirectionalPreviewSync {
     });
   }
 
-  private schedulePreviewSelectionMirror(previewPane: HTMLElement): void {
+  private schedulePreviewSelectionMirror(previewPane: HTMLElement, fromPreviewPointer: boolean): void {
     if (this.selectionFrame !== undefined) {
       cancelAnimationFrame(this.selectionFrame);
     }
 
     this.selectionFrame = requestAnimationFrame(() => {
       this.selectionFrame = undefined;
-      this.mirrorPreviewSelectionToEditor(previewPane);
+      this.mirrorPreviewSelectionToEditor(previewPane, fromPreviewPointer);
     });
   }
 
-  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement): void {
+  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement, fromPreviewPointer: boolean): void {
     const selection = window.getSelection();
-    if (selection === null || selection.isCollapsed || selection.rangeCount === 0) {
-      // Keyup is tracked on the whole document (see attachSelectionListeners), so
-      // this can fire for a keystroke anywhere, including while typing in the
-      // editor itself, where the selection is routinely collapsed. Only treat a
-      // collapsed selection as "the user cleared their preview selection" when it
-      // is actually anchored in the preview pane, otherwise every keystroke in the
-      // editor would snap its cursor back to the last mirrored position.
-      if (selection?.anchorNode !== null && selection?.anchorNode !== undefined && previewPane.contains(selection.anchorNode)) {
+    if (selection === null) {
+      return;
+    }
+
+    // Decide whether there is a selection to mirror from the range, not from
+    // `selection.isCollapsed`. During a word-granularity drag (double-click then
+    // drag) WebKit can report a collapsed anchor/focus — the raw drag endpoints —
+    // even though the range it renders as highlighted still spans a whole word.
+    // The rendered range is what the user sees selected, so it is the source of
+    // truth for both whether a selection exists and what it covers.
+    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    if (range === null || range.collapsed) {
+      // The preview selection is empty. Collapse the mirrored editor selection when
+      // the user cleared it by interacting with the preview: either the settle came
+      // from a preview pointer gesture (a plain click inside rendered preview
+      // content clears the native selection to nothing, leaving no anchor node to
+      // test), or a caret/anchor still remains inside the preview. A document-wide
+      // keyup during ordinary editor typing has neither, so it leaves the editor
+      // cursor alone rather than snapping it back to the last mirrored position.
+      const anchorNode = selection.anchorNode;
+      const clearedInPreview = fromPreviewPointer
+        || (anchorNode !== null && previewPane.contains(anchorNode));
+      if (clearedInPreview) {
         this.collapseMirroredPreviewSelection();
       }
       return;

@@ -26,47 +26,57 @@ export function previewSelectionToEditorSelection(
   entries: readonly BlockEntry[],
   doc: DocumentText,
 ): SelectionMapping | undefined {
-  if (selection.isCollapsed || selection.anchorNode === null || selection.focusNode === null) {
+  if (selection.rangeCount === 0) {
     return undefined;
   }
 
-  if (!previewPane.contains(selection.anchorNode) || !previewPane.contains(selection.focusNode)) {
+  // Read the extent from the rendered range rather than anchor/focus. WebKit's
+  // word-granularity drags can report anchor/focus offsets that no longer match
+  // the highlighted range (a double-click then drag back to the word's start
+  // collapses the raw anchor/focus while still rendering the whole word selected);
+  // anchor/focus are used only to recover the drag direction below, never the
+  // selected extent. `range.startContainer`/`endContainer` are always in document
+  // order, so the range start is the lower (start) boundary.
+  const range = selection.getRangeAt(0);
+  if (range.collapsed) {
     return undefined;
   }
 
-  const anchor = endpointFor(selection.anchorNode, selection.anchorOffset, previewPane, entries);
-  const focus = endpointFor(selection.focusNode, selection.focusOffset, previewPane, entries);
-  if (anchor === undefined || focus === undefined) {
+  if (!previewPane.contains(range.startContainer) || !previewPane.contains(range.endContainer)) {
     return undefined;
   }
 
-  const anchorInfo = endpointSourceInfo(anchor, doc);
-  const focusInfo = endpointSourceInfo(focus, doc);
-  if (anchorInfo === undefined || focusInfo === undefined) {
+  const lower = endpointFor(range.startContainer, range.startOffset, previewPane, entries);
+  const upper = endpointFor(range.endContainer, range.endOffset, previewPane, entries);
+  if (lower === undefined || upper === undefined) {
     return undefined;
   }
 
-  // Decide which endpoint is the lower (start) and which is the upper (end) of the
-  // selection in document order. The lower boundary maps to the leading source
-  // position of the first selected character; the upper boundary maps to the
-  // trailing source position of the last selected character. Using these two
-  // sides — rather than the leading position for both — excludes closing syntax
-  // markers (e.g. the `**` after `bold text`) that sit between the last content
-  // character and the next one.
-  const anchorIsLower = compareEndpointInfo(anchorInfo, focusInfo) <= 0;
-  const lowerInfo = anchorIsLower ? anchorInfo : focusInfo;
-  const upperInfo = anchorIsLower ? focusInfo : anchorInfo;
+  const lowerInfo = endpointSourceInfo(lower, doc);
+  const upperInfo = endpointSourceInfo(upper, doc);
+  if (lowerInfo === undefined || upperInfo === undefined) {
+    return undefined;
+  }
 
+  // The lower boundary maps to the leading source position of the first selected
+  // character; the upper boundary maps to the trailing source position of the last
+  // selected character. Using these two sides — rather than the leading position
+  // for both — excludes closing syntax markers (e.g. the `**` after `bold text`)
+  // that sit between the last content character and the next one.
   const lowerPos = lowerInfo.leading;
-  // The upper boundary stops at the trailing (marker-excluded) position of the last
-  // selected character, so closing syntax markers are excluded from the range.
   const upperPos = upperInfo.trailing;
   if (lowerPos === upperPos) {
     return undefined;
   }
 
-  const anchorPos = anchorIsLower ? lowerPos : upperPos;
-  const focusPos = anchorIsLower ? upperPos : lowerPos;
+  // Direction (which end carries the caret head) is cosmetic — it only controls
+  // which end of the editor selection blinks. A selection is "backward" when the
+  // DOM anchor sits at the range's end; otherwise — including WebKit's
+  // collapsed-anchor word drags — treat it as forward.
+  const backward = selection.anchorNode === range.endContainer
+    && selection.anchorOffset === range.endOffset;
+  const anchorPos = backward ? upperPos : lowerPos;
+  const focusPos = backward ? lowerPos : upperPos;
   const editorRange = EditorSelection.range(anchorPos, focusPos);
   return {
     selection: EditorSelection.create([editorRange]),
@@ -164,11 +174,10 @@ function firstTextNode(element: HTMLElement): globalThis.Text | undefined {
 // Source positions for a single selection endpoint. `leading` is the source
 // offset to use when this endpoint is the lower (start) boundary of the
 // selection; `trailing` is the offset to use when it is the upper (end)
-// boundary. `blockFrom` and `order` establish document order between the two
-// endpoints so we can tell which side each one is.
+// boundary. Document order between endpoints comes from the DOM range itself
+// (its start container is always the lower boundary), so no ordering fields are
+// needed here.
 type EndpointSourceInfo = {
-  blockFrom: number;
-  order: number;
   leading: number;
   trailing: number;
 };
@@ -179,33 +188,25 @@ function endpointSourceInfo(endpoint: Endpoint, doc: DocumentText): EndpointSour
     return undefined;
   }
 
-  const blockFrom = endpoint.block.from;
   const domText = endpoint.block.element.textContent ?? '';
   if (domText.length === 0) {
-    return { blockFrom, order: 0, leading: sourceRange.from, trailing: sourceRange.to };
+    return { leading: sourceRange.from, trailing: sourceRange.to };
   }
 
   const renderedOffset = renderedOffsetInBlock(endpoint.block.element, endpoint.node, endpoint.offset);
   if (renderedOffset === undefined) {
-    return { blockFrom, order: 0, leading: sourceRange.from, trailing: sourceRange.to };
+    return { leading: sourceRange.from, trailing: sourceRange.to };
   }
 
   const source = doc.sliceString(sourceRange.from, sourceRange.to);
   const plain = markdownPlainChars(source, sourceRange.from);
   if (plain.length === 0) {
-    return { blockFrom, order: renderedOffset, leading: sourceRange.from, trailing: sourceRange.to };
+    return { leading: sourceRange.from, trailing: sourceRange.to };
   }
 
   const map = renderedToSourceMap(domText, plain, sourceRange);
   const index = clamp(renderedOffset, 0, domText.length);
-  return { blockFrom, order: index, leading: map.starts[index], trailing: map.ends[index] };
-}
-
-function compareEndpointInfo(a: EndpointSourceInfo, b: EndpointSourceInfo): number {
-  if (a.blockFrom !== b.blockFrom) {
-    return a.blockFrom - b.blockFrom;
-  }
-  return a.order - b.order;
+  return { leading: map.starts[index], trailing: map.ends[index] };
 }
 
 function sourceRangeForBlock(block: BlockEntry, doc: DocumentText): { from: number; to: number } | undefined {

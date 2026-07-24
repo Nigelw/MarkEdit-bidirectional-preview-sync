@@ -14,11 +14,16 @@ HTML can’t be mapped to Markdown perfectly, so there may be instances where sw
 
 ## Install
 
-1. Download `markedit-bidirectional-preview-sync.js` from the [latest GitHub release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest).
-2. Move it into MarkEdit's scripts folder: `~/Library/Containers/app.cyan.markedit/Data/Documents/scripts/`
-3. Quit and reopen MarkEdit.
+1. [Download the latest release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest).
+2. Move `markedit-bidirectional-preview-sync.js` into MarkEdit's scripts folder:
+
+```
+~/Library/Containers/app.cyan.markedit/Data/Documents/scripts/
+```
+
+3. Relaunch MarkEdit.
 4. Follow the prompt to disable MarkEdit-preview's one-way scroll sync.
-5. Quit and reopen MarkEdit again.
+5. Relaunch MarkEdit again. After that the extension [keeps itself up to date](#staying-up-to-date) so there's no need to download it again by hand.
 
 **Disabling One-Way Sync**
 

@@ -1,7 +1,9 @@
+import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { MarkEdit } from 'markedit-api';
 
 import { PreviewBlockIndex, type BlockEntry } from './previewBlocks';
+import { previewSelectionToEditorSelection } from './previewSelection';
 import { loadSettings, markEditPreviewSyncScrollDisabled, PREVIEW_SETTINGS_NAMESPACE, settingsObject } from './settings';
 import type { Settings, SyncTiming } from './settings';
 import { readSettings, writeSettings } from './settingsFile';
@@ -39,8 +41,11 @@ export class BidirectionalPreviewSync {
   private readonly blockIndex = new PreviewBlockIndex();
   private disposables: Disposable[] = [];
   private scrollDisposables: Disposable[] = [];
+  private selectionDisposables: Disposable[] = [];
   private editorFrame: number | undefined;
   private previewFrame: number | undefined;
+  private selectionFrame: number | undefined;
+  private previewPointerDown = false;
   private attachFrame: number | undefined;
   private attachedPreviewPane: HTMLElement | undefined;
   private waitingForPreviewLogged = false;
@@ -49,6 +54,7 @@ export class BidirectionalPreviewSync {
   private sourceAnimationOverride: SourceAnimationOverride | undefined;
   private releaseTimer: ReturnType<typeof setTimeout> | undefined;
   private releaseScrollEndDispose: Disposable | undefined;
+  private mirroredPreviewSelectionStart: number | undefined;
   private started = false;
 
   start(): void {
@@ -69,6 +75,7 @@ export class BidirectionalPreviewSync {
       dispose();
     }
     this.detachScrollListeners();
+    this.detachSelectionListeners();
 
     if (this.editorFrame !== undefined) {
       cancelAnimationFrame(this.editorFrame);
@@ -77,6 +84,10 @@ export class BidirectionalPreviewSync {
     if (this.previewFrame !== undefined) {
       cancelAnimationFrame(this.previewFrame);
       this.previewFrame = undefined;
+    }
+    if (this.selectionFrame !== undefined) {
+      cancelAnimationFrame(this.selectionFrame);
+      this.selectionFrame = undefined;
     }
     if (this.attachFrame !== undefined) {
       cancelAnimationFrame(this.attachFrame);
@@ -132,12 +143,18 @@ export class BidirectionalPreviewSync {
     }
 
     this.detachScrollListeners();
+    this.detachSelectionListeners();
     this.clearSourceLock();
     this.attachScrollListeners(MarkEdit.editorView.scrollDOM, previewPane);
+    this.attachSelectionListeners(previewPane);
   }
 
   syncTiming(): SyncTiming {
     return this.settings.syncTiming;
+  }
+
+  mirrorPreviewSelection(): boolean {
+    return this.settings.mirrorPreviewSelection;
   }
 
   private observePreviewPane(): void {
@@ -185,8 +202,10 @@ export class BidirectionalPreviewSync {
     }
 
     this.detachScrollListeners();
+    this.detachSelectionListeners();
     this.blockIndex.attach(previewPane);
     this.attachScrollListeners(MarkEdit.editorView.scrollDOM, previewPane);
+    this.attachSelectionListeners(previewPane);
     this.attachedPreviewPane = previewPane;
     this.waitingForPreviewLogged = false;
     this.started = true;
@@ -209,6 +228,19 @@ export class BidirectionalPreviewSync {
     }
   }
 
+  private detachSelectionListeners(): void {
+    for (const dispose of this.selectionDisposables.splice(0)) {
+      dispose();
+    }
+
+    if (this.selectionFrame !== undefined) {
+      cancelAnimationFrame(this.selectionFrame);
+      this.selectionFrame = undefined;
+    }
+    this.previewPointerDown = false;
+    this.mirroredPreviewSelectionStart = undefined;
+  }
+
   private attachScrollListeners(editorScroller: HTMLElement, previewPane: HTMLElement): void {
     const editorHandler = () => {
       if (this.source === 'preview') {
@@ -226,6 +258,50 @@ export class BidirectionalPreviewSync {
 
     this.addScrollListener(editorScroller, editorHandler);
     this.addScrollListener(previewPane, previewHandler);
+  }
+
+  private attachSelectionListeners(previewPane: HTMLElement): void {
+    if (!this.settings.mirrorPreviewSelection) {
+      return;
+    }
+
+    // The mirror only runs once a selection gesture has settled, never during an
+    // in-progress drag. Reasoning about a single finished `window.getSelection()`
+    // state avoids the transient/intermediate selection states WebKit produces
+    // mid-drag (collapses as the caret crosses word/span boundaries, anchor
+    // placement that does not yet reflect the gesture's intent).
+    // `fromPreviewPointer` records whether the settle came from a mouse gesture that
+    // began inside the preview. That distinction matters when the resulting
+    // selection is empty: a plain click inside the preview clears the native
+    // selection to nothing (no anchor node to test), yet it should still collapse
+    // the mirrored editor selection — whereas a document-wide keyup during ordinary
+    // editor typing must leave the editor cursor alone.
+    const finalizeMirror = (fromPreviewPointer: boolean) =>
+      this.schedulePreviewSelectionMirror(previewPane, fromPreviewPointer);
+    const pointerDownHandler = () => { this.previewPointerDown = true; };
+    // Mouse release is tracked on the document so a drag that starts in the preview
+    // but ends outside it (for example dragging past the pane's edge before
+    // releasing) still finalizes the mirror.
+    const pointerUpHandler = () => {
+      if (!this.previewPointerDown) {
+        return;
+      }
+      this.previewPointerDown = false;
+      finalizeMirror(true);
+    };
+    // Keyup is tracked on the document, not previewPane: clicking into rendered,
+    // non-editable preview content does not move DOM focus into previewPane, so a
+    // keyup listener scoped to previewPane would never see the keyup events that
+    // fire while extending a selection with the keyboard (e.g. Shift+Arrow).
+    const keyUpHandler = () => finalizeMirror(false);
+    previewPane.addEventListener('mousedown', pointerDownHandler);
+    document.addEventListener('mouseup', pointerUpHandler);
+    document.addEventListener('keyup', keyUpHandler);
+    this.selectionDisposables.push(() => {
+      previewPane.removeEventListener('mousedown', pointerDownHandler);
+      document.removeEventListener('mouseup', pointerUpHandler);
+      document.removeEventListener('keyup', keyUpHandler);
+    });
   }
 
   private addScrollListener(element: HTMLElement, handler: () => void): void {
@@ -280,6 +356,78 @@ export class BidirectionalPreviewSync {
         return;
       }
       this.syncPreviewToEditor(editorScroller, previewPane);
+    });
+  }
+
+  private schedulePreviewSelectionMirror(previewPane: HTMLElement, fromPreviewPointer: boolean): void {
+    if (this.selectionFrame !== undefined) {
+      cancelAnimationFrame(this.selectionFrame);
+    }
+
+    this.selectionFrame = requestAnimationFrame(() => {
+      this.selectionFrame = undefined;
+      this.mirrorPreviewSelectionToEditor(previewPane, fromPreviewPointer);
+    });
+  }
+
+  private mirrorPreviewSelectionToEditor(previewPane: HTMLElement, fromPreviewPointer: boolean): void {
+    const selection = window.getSelection();
+    if (selection === null) {
+      return;
+    }
+
+    // Decide whether there is a selection to mirror from the range, not from
+    // `selection.isCollapsed`. During a word-granularity drag (double-click then
+    // drag) WebKit can report a collapsed anchor/focus — the raw drag endpoints —
+    // even though the range it renders as highlighted still spans a whole word.
+    // The rendered range is what the user sees selected, so it is the source of
+    // truth for both whether a selection exists and what it covers.
+    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    if (range === null || range.collapsed) {
+      // The preview selection is empty. Collapse the mirrored editor selection when
+      // the user cleared it by interacting with the preview: either the settle came
+      // from a preview pointer gesture (a plain click inside rendered preview
+      // content clears the native selection to nothing, leaving no anchor node to
+      // test), or a caret/anchor still remains inside the preview. A document-wide
+      // keyup during ordinary editor typing has neither, so it leaves the editor
+      // cursor alone rather than snapping it back to the last mirrored position.
+      const anchorNode = selection.anchorNode;
+      const clearedInPreview = fromPreviewPointer
+        || (anchorNode !== null && previewPane.contains(anchorNode));
+      if (clearedInPreview) {
+        this.collapseMirroredPreviewSelection();
+      }
+      return;
+    }
+
+    const mapped = previewSelectionToEditorSelection(
+      selection,
+      previewPane,
+      this.blockIndex.all(),
+      MarkEdit.editorView.state.doc,
+    );
+    if (mapped === undefined) {
+      this.mirroredPreviewSelectionStart = undefined;
+      return;
+    }
+
+    this.mirroredPreviewSelectionStart = mapped.range.from;
+    MarkEdit.editorView.dispatch({
+      selection: mapped.selection,
+      effects: EditorView.scrollIntoView(mapped.range, { y: 'nearest' }),
+    });
+  }
+
+  private collapseMirroredPreviewSelection(): void {
+    if (this.mirroredPreviewSelectionStart === undefined) {
+      return;
+    }
+
+    const cursor = EditorSelection.cursor(this.mirroredPreviewSelectionStart);
+    this.mirroredPreviewSelectionStart = undefined;
+    MarkEdit.editorView.dispatch({
+      selection: EditorSelection.create([cursor]),
+      effects: EditorView.scrollIntoView(cursor, { y: 'nearest' }),
     });
   }
 

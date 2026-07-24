@@ -1,6 +1,6 @@
 # MarkEdit Bidirectional Preview Sync
 
-Keeps [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)’s editor and preview modes synchronized as you switch between them and scroll.
+Keeps [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)’s editor and preview panes synchronized as you switch, scroll, and select text between them.
 
 [MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview) can keep the preview aligned as you edit but it’s one-way only; when you scroll the preview it doesn't move the editor. This extension keeps both views aligned, so you can move quickly between reading the rendered document and editing the source.
 
@@ -8,7 +8,7 @@ This is particularly useful when using preview mode to proofread. When you spot 
 
 HTML can’t be mapped to Markdown perfectly, so there may be instances where switching from preview to editor doesn’t scroll to the exact correct location. Luckily this functionality doesn't need to be perfect to remove friction from your workflow; it just needs to be good. This extension easily clears that bar. It also works nicely with my [Outline Sidebar](https://github.com/Nigelw/MarkEdit-outline-sidebar) extension.
 
-![MarkEdit Bidirectional Preview Sync demo](assets/screenrecording2.gif)
+![MarkEdit Bidirectional Preview Sync demo](assets/screen_recording.gif)
 
 **[Download the latest release](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest/download/markedit-bidirectional-preview-sync.js)** then see [Install](#install) below.
 
@@ -40,12 +40,15 @@ If you prefer to make the change manually, set MarkEdit-preview's `syncScroll` o
 
 Use *Extensions → Bidirectional Preview Sync → Sync After Scrolling Stops* or *Sync While Scrolling* to change `syncTiming` from the extension's menu without relaunching MarkEdit.
 
+Use *Extensions → Bidirectional Preview Sync → Experimental Features → Mirror Preview Selection* to toggle whether selecting rendered text in the preview also selects the matching Markdown source in the editor. This setting is hot-reloaded immediately.
+
 Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
 
 ```json
 {
     "extension.bidirectionalPreviewSync": {
       "syncTiming": "afterScroll",
+      "mirrorPreviewSelection": false,
       "referenceRatio": 0,
       "update": "notify"
   }
@@ -55,6 +58,10 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
 - `syncTiming`: controls when the paired view updates.
   - `"afterScroll”` (default) and waits for scrolling to settle.
   - `"whileScrolling"` updates the paired view continuously as you scroll.
+- `mirrorPreviewSelection`: mirrors preview text selections into the editor when set to `true`. Off (`false`) by default while this experimental feature is refined; it's also available from the Extensions menu under *Experimental Features*.
+  - Deselecting mirrored preview text collapses the editor selection to a caret at the start of the previous mirrored source selection.
+  - Styled text selects the content text in the source and tries to exclude Markdown formatting markers such as `**`, `_`, backticks, heading markers, and link destinations.
+  - Mapping is best-effort. Simple prose, headings, emphasis, inline code, and links usually work best. Tables, task lists, images, generated anchors, HTML blocks, footnotes, entities, deeply nested markup, or plugin-rendered content may select a nearby source span rather than the exact characters.
 - `referenceRatio`: chooses which part of the visible viewport the extension tries to keep aligned between the editor and preview. Use a number from `0` to `1`:
   - `0` (default) keeps the top visible editor line matched to the top of the preview, `0.5` aligns from the middle of the viewport, and `1` aligns from the bottom.
   - Numbers outside `0`-`1` are rounded to the nearest allowed value; non-numeric values use the default.
@@ -63,7 +70,7 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
   - `"automatic"` downloads newer releases silently and prompts for a relaunch.
   - `"never"` disables automatic checks.
 
-Settings edited manually in `settings.json` are read at launch, so quit and reopen MarkEdit after edits for changes to take effect.
+Settings edited manually in `settings.json` are read at launch, so quit and reopen MarkEdit after manual edits for changes to take effect. Menu changes to `syncTiming` and `mirrorPreviewSelection` are applied immediately.
 
 ## Staying Up To Date
 

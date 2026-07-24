@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 (2026-07-24)
+
+### Fixed
+
+- Fixed delayed scrolling in preview mode when clicking on sidebar items in the `Markedit-outline-sidebar` extension.
+- Fixed issue caused by using side-by-side preview mode, the “sync scroll during” setting, and the `Markedit-outline-sidebar` extension. Previously under these conditions, scrolling the editor caused preview mode to use smooth scrolling which feels weird and laggy in practice. Now smooth scrolling is disabled when scrolling the edit pane so the preview pane tracks it more closely.
+
 ## 1.1.0 (2026-07-24)
 
 ### New

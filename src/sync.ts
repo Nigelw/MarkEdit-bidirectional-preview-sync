@@ -52,6 +52,7 @@ export class BidirectionalPreviewSync {
   private nativeSyncAlertShown = false;
   private source: SyncSource = 'none';
   private sourceAnimationOverride: SourceAnimationOverride | undefined;
+  private bypassScrollSettle = false;
   private releaseTimer: ReturnType<typeof setTimeout> | undefined;
   private releaseScrollEndDispose: Disposable | undefined;
   private mirroredPreviewSelectionStart: number | undefined;
@@ -310,7 +311,14 @@ export class BidirectionalPreviewSync {
       const settledHandler = () => {
         if (settleTimer !== undefined) {
           clearTimeout(settleTimer);
+          settleTimer = undefined;
         }
+
+        if (this.bypassScrollSettle && this.source !== 'none') {
+          handler();
+          return;
+        }
+
         settleTimer = setTimeout(() => {
           settleTimer = undefined;
           handler();
@@ -552,6 +560,7 @@ export class BidirectionalPreviewSync {
 
     this.clearSourceLock();
     this.source = source;
+    this.bypassScrollSettle = true;
     if (options.animated !== undefined) {
       this.sourceAnimationOverride = {
         source,
@@ -567,6 +576,7 @@ export class BidirectionalPreviewSync {
       if (this.source === source) {
         this.source = 'none';
         this.sourceAnimationOverride = undefined;
+        this.bypassScrollSettle = false;
       }
       this.releaseTimer = undefined;
     }, animated ? SMOOTH_LOCK_RELEASE_MS : LOCK_RELEASE_MS);
@@ -592,6 +602,7 @@ export class BidirectionalPreviewSync {
       }
       this.source = 'none';
       this.sourceAnimationOverride = undefined;
+      this.bypassScrollSettle = false;
     };
 
     if (animated && 'onscrollend' in window) {
@@ -603,6 +614,7 @@ export class BidirectionalPreviewSync {
 
     this.releaseTimer = setTimeout(() => {
       this.source = 'none';
+      this.bypassScrollSettle = false;
       this.releaseTimer = undefined;
     }, animated ? SMOOTH_LOCK_RELEASE_MS : LOCK_RELEASE_MS);
   }
@@ -618,6 +630,7 @@ export class BidirectionalPreviewSync {
     }
     this.source = 'none';
     this.sourceAnimationOverride = undefined;
+    this.bypassScrollSettle = false;
   }
 
   private animatedForSyncFrom(source: IntegrationScrollSource): boolean {

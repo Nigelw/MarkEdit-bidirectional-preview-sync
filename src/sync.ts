@@ -614,6 +614,7 @@ export class BidirectionalPreviewSync {
 
     this.releaseTimer = setTimeout(() => {
       this.source = 'none';
+      this.sourceAnimationOverride = undefined;
       this.bypassScrollSettle = false;
       this.releaseTimer = undefined;
     }, animated ? SMOOTH_LOCK_RELEASE_MS : LOCK_RELEASE_MS);

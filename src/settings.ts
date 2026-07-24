@@ -10,7 +10,6 @@ export type UpdateBehavior = 'automatic' | 'notify' | 'never';
 export type Settings = {
   syncTiming: SyncTiming;
   mirrorPreviewSelection: boolean;
-  mirrorEditorSelection: boolean;
   referenceRatio: number;
   update: UpdateBehavior;
 };
@@ -22,7 +21,6 @@ export function loadSettings(): Settings {
   return {
     syncTiming,
     mirrorPreviewSelection: booleanValue(root.mirrorPreviewSelection, false),
-    mirrorEditorSelection: booleanValue(root.mirrorEditorSelection, false),
     referenceRatio: numberValue(root.referenceRatio, 0, 0, 1),
     update: updateBehaviorValue(root.update, 'notify'),
   };

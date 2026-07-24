@@ -7,9 +7,6 @@
 - Added preview-selection mirroring so selecting rendered preview text selects the matching Markdown source in the editor.
 - Added a hot-reloaded `mirrorPreviewSelection` setting and menu toggle, under a new *Experimental Features* submenu. Off by default while this feature is refined.
 - Collapsing a mirrored preview text selection now collapses the editor selection to the start of the mirrored source selection.
-- Added editor-selection mirroring (the reverse direction) so selecting Markdown source in the editor highlights the matching rendered text in the preview, excluding formatting markers and preserving the selection's direction. Built on the same rendered↔source mapping as preview-selection mirroring, with a CodeMirror selection listener and reentrancy guards so the two directions do not echo into each other.
-- Added a hot-reloaded `mirrorEditorSelection` setting and menu toggle under *Experimental Features*, independent from `mirrorPreviewSelection`. Off by default while this feature is refined.
-- Collapsing the editor selection to a caret clears a preview highlight this feature set, without disturbing a selection made directly in the preview.
 
 ### Fixed
 

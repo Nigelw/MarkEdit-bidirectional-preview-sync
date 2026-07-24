@@ -3,7 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { MarkEdit } from 'markedit-api';
 
 import { PreviewBlockIndex, type BlockEntry } from './previewBlocks';
-import { editorSelectionToPreviewSelection, previewSelectionToEditorSelection } from './previewSelection';
+import { previewSelectionToEditorSelection } from './previewSelection';
 import { loadSettings, markEditPreviewSyncScrollDisabled, PREVIEW_SETTINGS_NAMESPACE, settingsObject } from './settings';
 import type { Settings, SyncTiming } from './settings';
 import { readSettings, writeSettings } from './settingsFile';
@@ -17,12 +17,6 @@ type Disposable = () => void;
 type SourceAnimationOverride = {
   source: IntegrationScrollSource;
   animated: boolean;
-};
-type MirroredPreviewSelection = {
-  anchorNode: Node;
-  anchorOffset: number;
-  focusNode: Node;
-  focusOffset: number;
 };
 type IntegrationState = {
   isActive?: boolean;
@@ -61,21 +55,6 @@ export class BidirectionalPreviewSync {
   private releaseTimer: ReturnType<typeof setTimeout> | undefined;
   private releaseScrollEndDispose: Disposable | undefined;
   private mirroredPreviewSelectionStart: number | undefined;
-  private editorSelectionFrame: number | undefined;
-  private editorSelectionExtensionInstalled = false;
-  // Echo guard for preview→editor writes: set synchronously around the CM6
-  // `dispatch` so the editor→preview updateListener (which fires synchronously
-  // during dispatch) skips the selection we just mirrored back into the editor.
-  private suppressEditorSelectionMirror = false;
-  // Echo guard for editor→preview writes: set when this feature calls
-  // `setBaseAndExtent`, consumed by the next preview→editor mirror so it does not
-  // map our own write back into the editor.
-  private suppressPreviewSelectionMirror = false;
-  // Whether the current preview selection was set by this feature (as opposed to
-  // one the user made directly in the preview). Gates the collapse-on-caret clear
-  // and the backstop below so a user's own preview selection is never clobbered.
-  private previewSelectionSetByExtension = false;
-  private lastMirroredPreviewSelection: MirroredPreviewSelection | undefined;
   private started = false;
 
   start(): void {
@@ -87,11 +66,6 @@ export class BidirectionalPreviewSync {
       return;
     }
 
-    // The CM6 selection listener is registered exactly once for the lifetime of
-    // the extension: `MarkEdit.addExtension` has no removal API, so the listener
-    // stays installed across stop()/start() cycles and gates its body on the live
-    // `mirrorEditorSelection` setting instead of being re-registered.
-    this.installEditorSelectionListener();
     this.observePreviewPane();
     this.attachCurrentPreviewPane();
   }
@@ -114,10 +88,6 @@ export class BidirectionalPreviewSync {
     if (this.selectionFrame !== undefined) {
       cancelAnimationFrame(this.selectionFrame);
       this.selectionFrame = undefined;
-    }
-    if (this.editorSelectionFrame !== undefined) {
-      cancelAnimationFrame(this.editorSelectionFrame);
-      this.editorSelectionFrame = undefined;
     }
     if (this.attachFrame !== undefined) {
       cancelAnimationFrame(this.attachFrame);
@@ -185,10 +155,6 @@ export class BidirectionalPreviewSync {
 
   mirrorPreviewSelection(): boolean {
     return this.settings.mirrorPreviewSelection;
-  }
-
-  mirrorEditorSelection(): boolean {
-    return this.settings.mirrorEditorSelection;
   }
 
   private observePreviewPane(): void {
@@ -273,9 +239,6 @@ export class BidirectionalPreviewSync {
     }
     this.previewPointerDown = false;
     this.mirroredPreviewSelectionStart = undefined;
-    this.suppressPreviewSelectionMirror = false;
-    this.previewSelectionSetByExtension = false;
-    this.lastMirroredPreviewSelection = undefined;
   }
 
   private attachScrollListeners(editorScroller: HTMLElement, previewPane: HTMLElement): void {
@@ -315,17 +278,7 @@ export class BidirectionalPreviewSync {
     // editor typing must leave the editor cursor alone.
     const finalizeMirror = (fromPreviewPointer: boolean) =>
       this.schedulePreviewSelectionMirror(previewPane, fromPreviewPointer);
-    // A pointer gesture starting in the preview means the user is about to make
-    // their own selection there. Any selection this feature previously mirrored no
-    // longer belongs to us, so drop that bookkeeping (which also ensures a later
-    // editor caret-collapse never clears the user's own preview selection) and
-    // release a pending editor→preview echo guard so their selection mirrors.
-    const pointerDownHandler = () => {
-      this.previewPointerDown = true;
-      this.previewSelectionSetByExtension = false;
-      this.lastMirroredPreviewSelection = undefined;
-      this.suppressPreviewSelectionMirror = false;
-    };
+    const pointerDownHandler = () => { this.previewPointerDown = true; };
     // Mouse release is tracked on the document so a drag that starts in the preview
     // but ends outside it (for example dragging past the pane's edge before
     // releasing) still finalizes the mirror.
@@ -423,21 +376,6 @@ export class BidirectionalPreviewSync {
       return;
     }
 
-    // Echo guard: this settle was produced by our own editor→preview
-    // `setBaseAndExtent`, not a user gesture. Consume the one-shot flag and stop so
-    // we do not map the mirrored selection straight back into the editor.
-    if (this.suppressPreviewSelectionMirror) {
-      this.suppressPreviewSelectionMirror = false;
-      return;
-    }
-
-    // Backstop for timing edge cases where the flag above was consumed by a
-    // different event: if the live selection is still exactly the one this feature
-    // last mirrored into the preview, it is ours to leave alone.
-    if (this.previewSelectionSetByExtension && this.selectionIsOwnMirror(selection)) {
-      return;
-    }
-
     // Decide whether there is a selection to mirror from the range, not from
     // `selection.isCollapsed`. During a word-granularity drag (double-click then
     // drag) WebKit can report a collapsed anchor/focus — the raw drag endpoints —
@@ -474,7 +412,7 @@ export class BidirectionalPreviewSync {
     }
 
     this.mirroredPreviewSelectionStart = mapped.range.from;
-    this.dispatchEditorSelection({
+    MarkEdit.editorView.dispatch({
       selection: mapped.selection,
       effects: EditorView.scrollIntoView(mapped.range, { y: 'nearest' }),
     });
@@ -487,138 +425,10 @@ export class BidirectionalPreviewSync {
 
     const cursor = EditorSelection.cursor(this.mirroredPreviewSelectionStart);
     this.mirroredPreviewSelectionStart = undefined;
-    this.dispatchEditorSelection({
+    MarkEdit.editorView.dispatch({
       selection: EditorSelection.create([cursor]),
       effects: EditorView.scrollIntoView(cursor, { y: 'nearest' }),
     });
-  }
-
-  // Dispatches a preview→editor selection change while suppressing the editor→
-  // preview mirror. CM6 update listeners run synchronously inside `dispatch`, so
-  // the flag is set for exactly the window in which the echoing updateListener
-  // fires, then cleared.
-  private dispatchEditorSelection(spec: Parameters<EditorView['dispatch']>[0]): void {
-    this.suppressEditorSelectionMirror = true;
-    try {
-      MarkEdit.editorView.dispatch(spec);
-    } finally {
-      this.suppressEditorSelectionMirror = false;
-    }
-  }
-
-  private selectionIsOwnMirror(selection: Selection): boolean {
-    const last = this.lastMirroredPreviewSelection;
-    return last !== undefined
-      && selection.anchorNode === last.anchorNode
-      && selection.anchorOffset === last.anchorOffset
-      && selection.focusNode === last.focusNode
-      && selection.focusOffset === last.focusOffset;
-  }
-
-  private installEditorSelectionListener(): void {
-    if (this.editorSelectionExtensionInstalled) {
-      return;
-    }
-    this.editorSelectionExtensionInstalled = true;
-
-    MarkEdit.addExtension(EditorView.updateListener.of(update => {
-      if (!update.selectionSet) {
-        return;
-      }
-      if (!this.settings.mirrorEditorSelection) {
-        return;
-      }
-      // This update is the editor side of a preview→editor mirror we just
-      // dispatched; mirroring it back would be an echo.
-      if (this.suppressEditorSelectionMirror) {
-        return;
-      }
-      const previewPane = this.attachedPreviewPane;
-      if (previewPane === undefined) {
-        return;
-      }
-      this.scheduleEditorSelectionMirror(previewPane);
-    }));
-  }
-
-  private scheduleEditorSelectionMirror(previewPane: HTMLElement): void {
-    if (this.editorSelectionFrame !== undefined) {
-      cancelAnimationFrame(this.editorSelectionFrame);
-    }
-
-    this.editorSelectionFrame = requestAnimationFrame(() => {
-      this.editorSelectionFrame = undefined;
-      this.mirrorEditorSelectionToPreview(previewPane);
-    });
-  }
-
-  private mirrorEditorSelectionToPreview(previewPane: HTMLElement): void {
-    if (!this.settings.mirrorEditorSelection) {
-      return;
-    }
-
-    const state = MarkEdit.editorView.state;
-    const range = state.selection.main;
-
-    // A caret (empty selection) has no visible meaning in the non-editable preview.
-    // Clear a selection this feature previously mirrored there, but never one the
-    // user made directly in the preview.
-    if (range.empty) {
-      const selection = window.getSelection();
-      // Only clear a selection that is still exactly the one we mirrored: if the
-      // user has since changed it directly in the preview, it is theirs to keep.
-      if (this.previewSelectionSetByExtension && selection !== null && this.selectionIsOwnMirror(selection)) {
-        selection.removeAllRanges();
-      }
-      this.previewSelectionSetByExtension = false;
-      this.lastMirroredPreviewSelection = undefined;
-      return;
-    }
-
-    const mapping = editorSelectionToPreviewSelection(
-      range,
-      previewPane,
-      this.blockIndex.all(),
-      state.doc,
-    );
-    if (mapping === undefined) {
-      return;
-    }
-
-    const selection = window.getSelection();
-    if (selection === null) {
-      return;
-    }
-
-    // Arm the preview→editor echo guard immediately around the imperative write:
-    // `setBaseAndExtent` fires `selectionchange`, and the settle it eventually
-    // produces must not be mapped back into the editor.
-    this.suppressPreviewSelectionMirror = true;
-    try {
-      selection.setBaseAndExtent(
-        mapping.anchorNode,
-        mapping.anchorOffset,
-        mapping.focusNode,
-        mapping.focusOffset,
-      );
-      this.previewSelectionSetByExtension = true;
-      this.lastMirroredPreviewSelection = {
-        anchorNode: mapping.anchorNode,
-        anchorOffset: mapping.anchorOffset,
-        focusNode: mapping.focusNode,
-        focusOffset: mapping.focusOffset,
-      };
-    } catch {
-      // setBaseAndExtent throws if an endpoint is no longer a valid position (e.g.
-      // the preview re-rendered between mapping and applying). Leave the preview
-      // selection untouched.
-      this.suppressPreviewSelectionMirror = false;
-      this.previewSelectionSetByExtension = false;
-      this.lastMirroredPreviewSelection = undefined;
-      return;
-    }
-
-    mapping.scrollTarget?.scrollIntoView({ block: 'nearest' });
   }
 
   private syncEditorToPreview(editorScroller: HTMLElement, previewPane: HTMLElement): void {

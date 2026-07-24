@@ -42,8 +42,6 @@ Use *Extensions → Bidirectional Preview Sync → Sync After Scrolling Stops* o
 
 Use *Extensions → Bidirectional Preview Sync → Experimental Features → Mirror Preview Selection* to toggle whether selecting rendered text in the preview also selects the matching Markdown source in the editor. This setting is hot-reloaded immediately.
 
-Use *Extensions → Bidirectional Preview Sync → Experimental Features → Mirror Editor Selection* to toggle the reverse direction: whether selecting Markdown source in the editor also highlights the matching rendered text in the preview. This setting is independent from *Mirror Preview Selection* and is hot-reloaded immediately.
-
 Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
 
 ```json
@@ -51,7 +49,6 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
     "extension.bidirectionalPreviewSync": {
       "syncTiming": "afterScroll",
       "mirrorPreviewSelection": false,
-      "mirrorEditorSelection": false,
       "referenceRatio": 0,
       "update": "notify"
   }
@@ -65,10 +62,6 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
   - Deselecting mirrored preview text collapses the editor selection to a caret at the start of the previous mirrored source selection.
   - Styled text selects the content text in the source and tries to exclude Markdown formatting markers such as `**`, `_`, backticks, heading markers, and link destinations.
   - Mapping is best-effort. Simple prose, headings, emphasis, inline code, and links usually work best. Tables, task lists, images, generated anchors, HTML blocks, footnotes, entities, deeply nested markup, or plugin-rendered content may select a nearby source span rather than the exact characters.
-- `mirrorEditorSelection`: mirrors editor text selections into the preview when set to `true`, the reverse of `mirrorPreviewSelection`. Off (`false`) by default while this experimental feature is refined; it's also available from the Extensions menu under *Experimental Features*. It is fully independent from `mirrorPreviewSelection`, so either direction, both, or neither can be enabled.
-  - Selecting Markdown source highlights the equivalent rendered span in the preview, excluding formatting markers such as `**`, `_`, backticks, heading markers, and link destinations, and preserving the selection's direction.
-  - Collapsing the editor selection to a caret clears a preview highlight this feature previously set, without disturbing a selection made directly in the preview.
-  - Mapping is best-effort with the same coverage and limitations as `mirrorPreviewSelection`.
 - `referenceRatio`: chooses which part of the visible viewport the extension tries to keep aligned between the editor and preview. Use a number from `0` to `1`:
   - `0` (default) keeps the top visible editor line matched to the top of the preview, `0.5` aligns from the middle of the viewport, and `1` aligns from the bottom.
   - Numbers outside `0`-`1` are rounded to the nearest allowed value; non-numeric values use the default.
@@ -77,7 +70,7 @@ Settings can also be edited manually under `extension.bidirectionalPreviewSync`:
   - `"automatic"` downloads newer releases silently and prompts for a relaunch.
   - `"never"` disables automatic checks.
 
-Settings edited manually in `settings.json` are read at launch, so quit and reopen MarkEdit after manual edits for changes to take effect. Menu changes to `syncTiming`, `mirrorPreviewSelection`, and `mirrorEditorSelection` are applied immediately.
+Settings edited manually in `settings.json` are read at launch, so quit and reopen MarkEdit after manual edits for changes to take effect. Menu changes to `syncTiming` and `mirrorPreviewSelection` are applied immediately.
 
 ## Staying Up To Date
 

@@ -1,2 +1,3 @@
-dist/
+dist/*
+!dist/markedit-bidirectional-preview-sync.js
 node_modules/

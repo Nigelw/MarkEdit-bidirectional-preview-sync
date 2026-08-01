@@ -1,22 +1,18 @@
 ---
 name: release
-description: Cut a new release of the MarkEdit Bidirectional Preview Sync extension: bump the version, update the changelog, build, tag, push, and publish a GitHub release with the compiled bundle attached as an asset. Use when the user says "release", "cut a release", "ship a new version", "publish v1.2.0", or wants to make the in-app auto-updater offer a new build.
+description: Cut a new release of the MarkEdit Bidirectional Preview Sync extension: bump the version, update the changelog, build, tag, push, and publish a GitHub release with the compiled bundle attached as an asset. Use when the user says "release", "cut a release", "ship a new version", or "publish v1.2.0".
 ---
 
 # Release MarkEdit Bidirectional Preview Sync
 
-This extension has an in-app self-updater (`src/updater.ts`). Installed copies poll
-`api.github.com/repos/Nigelw/MarkEdit-bidirectional-preview-sync/releases/latest`, compare the
-release tag against their baked-in version, and, when a newer one exists, download the release's
-`markedit-bidirectional-preview-sync.js` asset via its `browser_download_url` and overwrite their
-own script file with it.
+Each release should keep these artifacts aligned for manual installation and registry distribution:
 
-A release is only usable by the updater if all of these agree:
-
-1. `package.json` `version` = the new version, baked into the bundle at build time.
+1. `package.json` `version` = the new version.
 2. `dist/markedit-bidirectional-preview-sync.js` is freshly rebuilt from that version.
 3. The GitHub release for `v<version>` has a `markedit-bidirectional-preview-sync.js` asset that is
    exactly that freshly-built bundle.
+
+Updates for registry-installed copies are managed centrally by MarkEdit's Extension Manager.
 
 ## Before Starting
 
@@ -61,23 +57,21 @@ A release is only usable by the updater if all of these agree:
 
 3. Typecheck with `npm run typecheck`. Fix or report errors before continuing.
 
-4. Build with `npm run build`. This bakes the package version into the bundle, writes
-   `dist/markedit-bidirectional-preview-sync.js`, and deploys a copy into the local MarkEdit scripts
-   folder.
+4. Build with `npm run build`. This writes `dist/markedit-bidirectional-preview-sync.js` and deploys
+   a copy into the local MarkEdit scripts folder.
 
-5. Verify the bundle carries the new version:
-   `grep -c "<new-version>" dist/markedit-bidirectional-preview-sync.js` should be at least 1.
-   If it is 0, stop and investigate.
+5. Verify the bundle was produced:
+   `test -s dist/markedit-bidirectional-preview-sync.js`
 
 6. Commit the release files:
-   `git add package.json CHANGELOG.md` and commit as `Release v<version>`. Include any intended
-   source/doc changes for this release before tagging.
+   `git add package.json CHANGELOG.md dist/markedit-bidirectional-preview-sync.js` and commit as
+   `Release v<version>`. Include any intended source/doc changes for this release before tagging.
 
 7. Tag the release commit: `git tag -a v<version> -m "v<version>"`.
 
 8. Push the branch and tag: `git push origin main` and `git push origin v<version>`.
 
-9. Publish the GitHub release with the updater asset attached:
+9. Publish the GitHub release with the compiled asset attached:
    `gh release create v<version> --title "v<version>" --notes "<changelog section>" dist/markedit-bidirectional-preview-sync.js`
    The uploaded asset name must remain `markedit-bidirectional-preview-sync.js`.
 
@@ -92,10 +86,10 @@ A release is only usable by the updater if all of these agree:
 
 ## Report Back
 
-Tell the user the released version, the release URL, and the result of the asset check so they know
-the auto-updater will serve it.
+Tell the user the released version, the release URL, and the result of the asset check so they can
+install it manually or use it for registry distribution.
 
 ## Notes
 
-- The repo must stay public for unauthenticated GitHub API and release-asset fetches.
+- The repo must stay public for unauthenticated release-asset and registry fetches.
 - Never tag or upload without rebuilding. The uploaded asset must match `package.json`'s version.

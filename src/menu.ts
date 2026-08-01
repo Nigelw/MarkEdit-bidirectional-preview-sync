@@ -6,7 +6,6 @@ import { loadSettings, SETTINGS_NAMESPACE, settingsObject } from './settings';
 import type { SyncTiming } from './settings';
 import type { BidirectionalPreviewSync } from './sync';
 import { readSettings, writeSettings } from './settingsFile';
-import { checkForUpdates } from './updater';
 
 export function installMenu(controller: BidirectionalPreviewSync): void {
   MarkEdit.addMainMenuItem({
@@ -41,10 +40,6 @@ export function installMenu(controller: BidirectionalPreviewSync): void {
       {
         title: 'View Release Notes',
         action: () => openURL(RELEASE_NOTES_URL),
-      },
-      {
-        title: 'Check for Updates...',
-        action: () => void checkForUpdates(loadSettings().update, true),
       },
     ],
   } satisfies MenuItem);

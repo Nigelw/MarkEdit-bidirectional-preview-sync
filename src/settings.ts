@@ -5,13 +5,11 @@ import { PREVIEW_SETTINGS_NAMESPACE, SETTINGS_NAMESPACE } from './constants';
 
 export { PREVIEW_SETTINGS_NAMESPACE, SETTINGS_NAMESPACE };
 export type SyncTiming = 'afterScroll' | 'whileScrolling';
-export type UpdateBehavior = 'automatic' | 'notify' | 'never';
 
 export type Settings = {
   syncTiming: SyncTiming;
   mirrorPreviewSelection: boolean;
   referenceRatio: number;
-  update: UpdateBehavior;
 };
 
 export function loadSettings(): Settings {
@@ -22,7 +20,6 @@ export function loadSettings(): Settings {
     syncTiming,
     mirrorPreviewSelection: booleanValue(root.mirrorPreviewSelection, false),
     referenceRatio: numberValue(root.referenceRatio, 0, 0, 1),
-    update: updateBehaviorValue(root.update, 'notify'),
   };
 }
 
@@ -47,10 +44,6 @@ function objectValue(value: JSONValue | undefined): JSONObject {
 
 function syncTimingValue(value: JSONValue | undefined, fallback: SyncTiming): SyncTiming {
   return value === 'afterScroll' || value === 'whileScrolling' ? value : fallback;
-}
-
-function updateBehaviorValue(value: JSONValue | undefined, fallback: UpdateBehavior): UpdateBehavior {
-  return value === 'automatic' || value === 'notify' || value === 'never' ? value : fallback;
 }
 
 function booleanValue(value: JSONValue | undefined, fallback: boolean): boolean {

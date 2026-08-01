@@ -23,7 +23,7 @@ HTML can’t be mapped to Markdown perfectly, so there may be instances where sw
 
 3. Relaunch MarkEdit.
 4. Follow the prompt to disable MarkEdit-preview's one-way scroll sync.
-5. Relaunch MarkEdit again. After that the extension [keeps itself up to date](#staying-up-to-date) so there's no need to download it again by hand.
+5. Relaunch MarkEdit again.
 
 **Disabling One-Way Sync**
 
@@ -56,8 +56,7 @@ Settings can be edited manually under `extension.bidirectionalPreviewSync`:
     "extension.bidirectionalPreviewSync": {
       "syncTiming": "afterScroll",
       "mirrorPreviewSelection": false,
-      "referenceRatio": 0,
-      "update": "notify"
+      "referenceRatio": 0
   }
 }
 ```
@@ -70,10 +69,6 @@ Settings can be edited manually under `extension.bidirectionalPreviewSync`:
 - `referenceRatio`: chooses which part of the visible viewport the extension tries to keep aligned between the editor and preview. Use a number from `0` to `1`:
   - `0` (default) keeps the top visible editor line matched to the top of the preview, `0.5` aligns from the middle of the viewport, and `1` aligns from the bottom.
   - Numbers outside `0`-`1` are rounded to the nearest allowed value; non-numeric values use the default.
-- `update`: controls update checking.
-  - `"notify”` (default) asks before installing.
-  - `"automatic"` downloads newer releases silently and prompts for a relaunch.
-  - `"never"` disables automatic checks.
 
 Settings edited manually in `settings.json` are read at launch, so quit and reopen MarkEdit after manual edits for changes to take effect.
 
@@ -89,9 +84,11 @@ The implementation is intentionally simple in that it relies on regex rather tha
 
 Tl;dr: this feature is helpful but far from perfect. It may break in the future depending how MarkEdit-preview evolves. Turn it on if that trade-off is worth it for your workflow.
 
-## Staying Up To Date
+## Updates
 
-The extension checks [GitHub releases](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases) for a newer version shortly after MarkEdit launches, at most once a week. You can also run *Extensions → Bidirectional Preview Sync → Check for Updates...* at any time. When a newer release is found, the extension downloads the release asset named `markedit-bidirectional-preview-sync.js` and replaces its own installed script file; the new version takes effect after restarting MarkEdit.
+Updates are managed centrally by MarkEdit's Extension Manager. The extension no longer checks GitHub releases or replaces its own installed script. The old `extension.bidirectionalPreviewSync.update` setting is ignored.
+
+If you installed the extension manually before it was available in the Extension Manager, download new versions from the [GitHub releases](https://github.com/Nigelw/MarkEdit-bidirectional-preview-sync/releases) page.
 
 ## Extension Integration
 

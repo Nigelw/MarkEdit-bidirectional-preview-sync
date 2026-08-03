@@ -49,3 +49,5 @@ For a release to be installable, all of these must agree:
 Registry entries should point at the committed bundle through the immutable raw URL for the matching release tag.
 
 The repo must stay public for unauthenticated release-asset and registry fetches to work.
+
+Registry submissions use the submit-registry skill at .agents/skills/submit-registry/SKILL.md. It verifies the latest tagged bundle, prepares the registry JSON and PR body for user review, validates the registry entry, and opens a draft PR only after approval.

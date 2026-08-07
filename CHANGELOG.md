@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.3 (2026-08-07)
+
+### Fixed
+
+- Improved synchronization when an open document is updated externally.
+
 ## 1.1.2 (2026-08-01)
 
 ### Improved

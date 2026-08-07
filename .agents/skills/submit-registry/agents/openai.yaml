@@ -1,4 +1,0 @@
-interface:
-  display_name: "Submit to Extensions Registry"
-  short_description: "Register releases with reviewable JSON and PRs"
-  default_prompt: "Use $submit-registry to register the latest release in MarkEdit’s official extensions registry."
